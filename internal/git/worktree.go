@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // Worktree represents a Git worktree with its status.
@@ -61,50 +62,62 @@ func List() ([]Worktree, error) {
 		cwd = ""
 	}
 
-	// Enrich with status information
+	// Enrich with status information (parallelized for performance)
+	var wg sync.WaitGroup
 	for i := range worktrees {
 		wt := &worktrees[i]
 
-		// Check if this is the current worktree
+		// Check if this is the current worktree (fast, no git call)
 		if cwd != "" {
 			wtPath, _ := filepath.Abs(wt.Path)
 			cwdPath, _ := filepath.Abs(cwd)
 			wt.IsCurrent = wtPath == cwdPath || strings.HasPrefix(cwdPath, wtPath+string(filepath.Separator))
 		}
 
-		// Check if this is the main worktree
+		// Check if this is the main worktree (fast, no git call)
 		wt.IsMain = wt.Path == repo.MainWorktreeRoot || (repo.IsBare && i == 0)
 
-		// Get dirty status
-		wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(wt.Path)
-
-		// Get upstream status (skip for detached HEAD - no tracking branch)
-		if wt.Branch != "" && !wt.IsDetached {
-			wt.Ahead, wt.Behind, _ = GetUpstreamStatus(wt.Path, wt.Branch)
-		}
-
-		// Get last commit
-		wt.LastCommitHash, wt.LastCommitMessage, wt.LastCommitTime, _ = GetLastCommit(wt.Path)
-
-		// Get merge status (skip for detached HEAD - use commit hash instead)
-		if wt.Branch != "" && wt.Branch != repo.DefaultBranch && !wt.IsDetached {
-			wt.IsMerged, _ = IsBranchMerged(wt.Branch, repo.DefaultBranch)
-		} else if wt.IsDetached && wt.head != "" {
-			// For detached HEAD, check if the commit itself is merged
-			wt.IsMerged, _ = IsBranchMerged(wt.head, repo.DefaultBranch)
-		}
-
-		// Get unique commits count (skip for detached HEAD)
-		if wt.Branch != "" && wt.Branch != repo.DefaultBranch && !wt.IsDetached {
-			commits, _ := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
-			wt.UniqueCommits = len(commits)
-		}
-
-		// Get stash count
-		wt.StashCount, _ = GetStashCount(wt.Path)
+		// Parallelize git operations
+		wg.Add(1)
+		go func(wt *Worktree) {
+			defer wg.Done()
+			enrichWorktree(wt, repo)
+		}(wt)
 	}
+	wg.Wait()
 
 	return worktrees, nil
+}
+
+// enrichWorktree populates a worktree with status information from git.
+func enrichWorktree(wt *Worktree, repo *Repo) {
+	// Get dirty status
+	wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(wt.Path)
+
+	// Get upstream status (skip for detached HEAD - no tracking branch)
+	if wt.Branch != "" && !wt.IsDetached {
+		wt.Ahead, wt.Behind, _ = GetUpstreamStatus(wt.Path, wt.Branch)
+	}
+
+	// Get last commit
+	wt.LastCommitHash, wt.LastCommitMessage, wt.LastCommitTime, _ = GetLastCommit(wt.Path)
+
+	// Get merge status (skip for detached HEAD - use commit hash instead)
+	if wt.Branch != "" && wt.Branch != repo.DefaultBranch && !wt.IsDetached {
+		wt.IsMerged, _ = IsBranchMerged(wt.Branch, repo.DefaultBranch)
+	} else if wt.IsDetached && wt.head != "" {
+		// For detached HEAD, check if the commit itself is merged
+		wt.IsMerged, _ = IsBranchMerged(wt.head, repo.DefaultBranch)
+	}
+
+	// Get unique commits count (skip for detached HEAD)
+	if wt.Branch != "" && wt.Branch != repo.DefaultBranch && !wt.IsDetached {
+		commits, _ := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
+		wt.UniqueCommits = len(commits)
+	}
+
+	// Get stash count
+	wt.StashCount, _ = GetStashCount(wt.Path)
 }
 
 // parseWorktreeList parses the porcelain output of git worktree list.
