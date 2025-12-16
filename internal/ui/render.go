@@ -54,13 +54,21 @@ type RenderParams struct {
 	StashCursor       int
 }
 
+// MinWidth is the absolute minimum terminal width we try to support.
+const MinWidth = 30
+
+// MinHeight is the absolute minimum terminal height we try to support.
+const MinHeight = 8
+
 // Render renders the full UI.
 func Render(p RenderParams) string {
-	if p.Width < 40 {
-		p.Width = 80
+	// Graceful degradation for small terminals instead of jumping to arbitrary values.
+	// Use actual width but clamp to minimum to prevent rendering issues.
+	if p.Width < MinWidth {
+		p.Width = MinWidth
 	}
-	if p.Height < 10 {
-		p.Height = 24
+	if p.Height < MinHeight {
+		p.Height = MinHeight
 	}
 
 	switch p.State {
@@ -133,7 +141,12 @@ func renderList(p RenderParams) string {
 
 	// Footer
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
-	b.WriteString(HelpStyle.Render("enter open • n new • d delete • p PR • r rename • f fetch • / filter • tab detail • ? help • q quit"))
+	helpText := compactHelp(
+		"enter open • n new • d delete • p PR • r rename • f fetch • / filter • tab detail • ? help • q quit",
+		"enter•n•d•p•r•f•/•tab•?•q",
+		p.Width,
+	)
+	b.WriteString(HelpStyle.Render(helpText))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }
@@ -626,14 +639,24 @@ func renderStash(p RenderParams) string {
 // wrapInBox wraps content in a box.
 func wrapInBox(content string, width, height int) string {
 	boxWidth := width - 2
-	if boxWidth < 40 {
-		boxWidth = 78
+	// Graceful degradation: use actual width, just ensure minimum for box borders
+	if boxWidth < MinWidth-2 {
+		boxWidth = MinWidth - 2
 	}
 
 	// Don't force height - let content determine size
 	style := BoxStyle.Width(boxWidth)
 
 	return style.Render(content)
+}
+
+// compactHelp returns a shortened help string for small terminals.
+func compactHelp(full, compact string, width int) string {
+	// If terminal is wide enough, use full help text
+	if width >= 80 {
+		return full
+	}
+	return compact
 }
 
 // padRight pads a string to the right.
