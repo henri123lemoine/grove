@@ -40,18 +40,18 @@ func PushBranch(worktreePath, branch string) error {
 }
 
 // CreatePR creates a pull request using the configured command.
-// It runs the command in the worktree directory.
+// It runs the command in the worktree directory via shell to properly
+// handle quoted arguments like: gh pr create --title "My Title"
 func CreatePR(worktreePath, command string) error {
-	// Split command into parts
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
+	if strings.TrimSpace(command) == "" {
 		return fmt.Errorf("empty PR command")
 	}
 
-	cmd := exec.Command(parts[0], parts[1:]...)
+	// Run through shell to handle quotes properly
+	cmd := exec.Command("sh", "-c", command)
 	cmd.Dir = worktreePath
 
-	// Run interactively
+	// Run interactively - let gh handle its own I/O
 	cmd.Stdin = nil
 	cmd.Stdout = nil
 	cmd.Stderr = nil
