@@ -483,10 +483,6 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Stash):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
-			if wt.StashCount == 0 {
-				m.err = fmt.Errorf("no stashes for this worktree")
-				return m, nil
-			}
 			m.stashWorktree = wt
 			m.stashCursor = 0
 			m.state = StateStash

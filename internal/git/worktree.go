@@ -29,9 +29,6 @@ type Worktree struct {
 	IsMerged      bool
 	UniqueCommits int // Commits that exist only on this branch
 
-	// Stash info
-	StashCount int
-
 	// Last commit
 	LastCommitHash    string
 	LastCommitMessage string
@@ -115,9 +112,6 @@ func enrichWorktree(wt *Worktree, repo *Repo) {
 		commits, _ := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
 		wt.UniqueCommits = len(commits)
 	}
-
-	// Get stash count
-	wt.StashCount, _ = GetStashCount(wt.Path)
 }
 
 // parseWorktreeList parses the porcelain output of git worktree list.

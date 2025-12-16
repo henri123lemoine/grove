@@ -217,11 +217,6 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 		statusParts = append(statusParts, UniqueStyle.Render(fmt.Sprintf("%d unpushed", wt.UniqueCommits)))
 	}
 
-	// Stash indicator
-	if wt.StashCount > 0 {
-		statusParts = append(statusParts, StashStyle.Render(fmt.Sprintf("📦 %d stashed", wt.StashCount)))
-	}
-
 	status := strings.Join(statusParts, "  ")
 	lines = append(lines, indent+path+"  "+status)
 
@@ -291,13 +286,6 @@ func renderDetailPanel(wt git.Worktree, width int) string {
 	}
 	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Merged:   ") + mergedStr)
 	b.WriteString(strings.Repeat(" ", max(0, 49-len(mergedStr)-10)) + DividerStyle.Render("│") + "\n")
-
-	// Stash count
-	if wt.StashCount > 0 {
-		stashStr := fmt.Sprintf("%d stashed changes", wt.StashCount)
-		b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Stash:    ") + stashStr)
-		b.WriteString(strings.Repeat(" ", max(0, 49-len(stashStr)-10)) + DividerStyle.Render("│") + "\n")
-	}
 
 	// Unique commits
 	if wt.UniqueCommits > 0 {

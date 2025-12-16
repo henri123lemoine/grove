@@ -69,6 +69,11 @@ func TestBranchExists(t *testing.T) {
 		t.Skipf("Could not get current branch: %v", err)
 	}
 
+	// Skip if in detached HEAD state (common in CI)
+	if currentBranch == "HEAD" || currentBranch == "" {
+		t.Skip("Skipping: repository is in detached HEAD state")
+	}
+
 	if !BranchExists(currentBranch) {
 		t.Errorf("Current branch %q should exist", currentBranch)
 	}
