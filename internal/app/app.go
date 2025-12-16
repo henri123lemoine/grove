@@ -27,6 +27,7 @@ const (
 	StateHelp
 	StatePR
 	StateRename
+	StateStash
 )
 
 // Model is the main application model.
@@ -67,6 +68,11 @@ type Model struct {
 	// Rename flow
 	renameWorktree *git.Worktree
 	renameInput    textinput.Model
+
+	// Stash flow
+	stashWorktree *git.Worktree
+	stashEntries  []git.StashEntry
+	stashCursor   int
 
 	// UI
 	width      int
@@ -292,6 +298,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Refresh worktrees after pruning
 		return m, loadWorktrees
+
+	case StashListLoadedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+			m.state = StateList
+			m.stashWorktree = nil
+			return m, nil
+		}
+		m.stashEntries = msg.Entries
+		return m, nil
+
+	case StashOperationCompletedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+		}
+		// Return to list and refresh
+		m.state = StateList
+		m.stashWorktree = nil
+		m.stashEntries = nil
+		return m, loadWorktrees
 	}
 
 	return m, nil
@@ -316,6 +342,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handlePRKeys(msg)
 	case StateRename:
 		return m.handleRenameKeys(msg)
+	case StateStash:
+		return m.handleStashKeys(msg)
 	}
 	return m, nil
 }
@@ -436,6 +464,18 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.Prune):
 		return m, pruneWorktrees
+	case key.Matches(msg, m.keys.Stash):
+		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
+			wt := &m.filteredWorktrees[m.cursor]
+			if wt.StashCount == 0 {
+				m.err = fmt.Errorf("no stashes for this worktree")
+				return m, nil
+			}
+			m.stashWorktree = wt
+			m.stashCursor = 0
+			m.state = StateStash
+			return m, loadStashList(wt.Path)
+		}
 	}
 	return m, nil
 }
@@ -629,6 +669,48 @@ func (m Model) handleRenameKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// handleStashKeys handles key presses in stash management flow.
+func (m Model) handleStashKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.state = StateList
+		m.stashWorktree = nil
+		m.stashEntries = nil
+		return m, nil
+	case tea.KeyUp:
+		if m.stashCursor > 0 {
+			m.stashCursor--
+		}
+		return m, nil
+	case tea.KeyDown:
+		if m.stashCursor < len(m.stashEntries)-1 {
+			m.stashCursor++
+		}
+		return m, nil
+	}
+
+	// Check for action keys
+	switch msg.String() {
+	case "p": // Pop stash
+		if len(m.stashEntries) > 0 && m.stashCursor < len(m.stashEntries) {
+			entry := m.stashEntries[m.stashCursor]
+			return m, popStash(m.stashWorktree.Path, entry.Index)
+		}
+	case "a": // Apply stash (keep in list)
+		if len(m.stashEntries) > 0 && m.stashCursor < len(m.stashEntries) {
+			entry := m.stashEntries[m.stashCursor]
+			return m, applyStash(m.stashWorktree.Path, entry.Index)
+		}
+	case "d", "x": // Drop stash
+		if len(m.stashEntries) > 0 && m.stashCursor < len(m.stashEntries) {
+			entry := m.stashEntries[m.stashCursor]
+			return m, dropStash(m.stashWorktree.Path, entry.Index)
+		}
+	}
+
+	return m, nil
+}
+
 // worktreeSource implements fuzzy.Source for worktree fuzzy matching.
 type worktreeSource []git.Worktree
 
@@ -691,6 +773,9 @@ func (m Model) View() string {
 		PRState:           m.prState,
 		RenameWorktree:    m.renameWorktree,
 		RenameInput:       m.renameInput.View(),
+		StashWorktree:     m.stashWorktree,
+		StashEntries:      m.stashEntries,
+		StashCursor:       m.stashCursor,
 	})
 }
 
@@ -796,6 +881,34 @@ func renameBranch(worktreePath, oldName, newName string) tea.Cmd {
 	return func() tea.Msg {
 		err := git.RenameBranch(worktreePath, oldName, newName)
 		return BranchRenamedMsg{OldName: oldName, NewName: newName, Err: err}
+	}
+}
+
+func loadStashList(worktreePath string) tea.Cmd {
+	return func() tea.Msg {
+		entries, err := git.ListStashes(worktreePath)
+		return StashListLoadedMsg{Entries: entries, Err: err}
+	}
+}
+
+func popStash(worktreePath string, index int) tea.Cmd {
+	return func() tea.Msg {
+		err := git.PopStashAt(worktreePath, index)
+		return StashOperationCompletedMsg{Operation: "pop", Err: err}
+	}
+}
+
+func applyStash(worktreePath string, index int) tea.Cmd {
+	return func() tea.Msg {
+		err := git.ApplyStash(worktreePath, index)
+		return StashOperationCompletedMsg{Operation: "apply", Err: err}
+	}
+}
+
+func dropStash(worktreePath string, index int) tea.Cmd {
+	return func() tea.Msg {
+		err := git.DropStash(worktreePath, index)
+		return StashOperationCompletedMsg{Operation: "drop", Err: err}
 	}
 }
 

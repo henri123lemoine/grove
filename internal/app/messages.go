@@ -102,3 +102,15 @@ type PruneCompletedMsg struct {
 	PrunedCount int
 	Err         error
 }
+
+// StashListLoadedMsg is sent when stash list is loaded.
+type StashListLoadedMsg struct {
+	Entries []git.StashEntry
+	Err     error
+}
+
+// StashOperationCompletedMsg is sent when a stash operation completes.
+type StashOperationCompletedMsg struct {
+	Operation string // "pop", "apply", or "drop"
+	Err       error
+}

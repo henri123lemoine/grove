@@ -21,6 +21,7 @@ const (
 	StateHelp
 	StatePR
 	StateRename
+	StateStash
 )
 
 // RenderParams contains all parameters needed for rendering.
@@ -48,6 +49,9 @@ type RenderParams struct {
 	PRState           string
 	RenameWorktree    *git.Worktree
 	RenameInput       string
+	StashWorktree     *git.Worktree
+	StashEntries      []git.StashEntry
+	StashCursor       int
 }
 
 // Render renders the full UI.
@@ -76,6 +80,8 @@ func Render(p RenderParams) string {
 		return renderPR(p)
 	case StateRename:
 		return renderRename(p)
+	case StateStash:
+		return renderStash(p)
 	default:
 		return renderList(p)
 	}
@@ -505,6 +511,7 @@ func renderHelp(p RenderParams) string {
 	b.WriteString(PathStyle.Render("  r        ") + "Rename branch\n")
 	b.WriteString(PathStyle.Render("  f        ") + "Fetch all remotes\n")
 	b.WriteString(PathStyle.Render("  P        ") + "Prune stale worktrees\n")
+	b.WriteString(PathStyle.Render("  s        ") + "Manage stashes\n")
 	b.WriteString(PathStyle.Render("  /        ") + "Filter worktrees\n")
 	b.WriteString(PathStyle.Render("  tab      ") + "Toggle detail panel\n")
 	b.WriteString("\n")
@@ -571,6 +578,47 @@ func renderRename(p RenderParams) string {
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	b.WriteString(HelpStyle.Render("enter confirm • esc cancel"))
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderStash renders the stash management view.
+func renderStash(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("STASH MANAGEMENT") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	if p.StashWorktree == nil {
+		return wrapInBox(b.String(), p.Width, p.Height)
+	}
+
+	b.WriteString("Worktree: " + PathStyle.Render(p.StashWorktree.Branch) + "\n\n")
+
+	if len(p.StashEntries) == 0 {
+		b.WriteString(PathStyle.Render("No stashes found.\n"))
+	} else {
+		for i, entry := range p.StashEntries {
+			cursor := "  "
+			if i == p.StashCursor {
+				cursor = SelectedStyle.Render("› ")
+			}
+			stashRef := fmt.Sprintf("stash@{%d}", entry.Index)
+			msg := entry.Message
+			if len(msg) > 50 {
+				msg = msg[:47] + "..."
+			}
+			if i == p.StashCursor {
+				b.WriteString(cursor + SelectedStyle.Render(stashRef) + " " + msg + "\n")
+			} else {
+				b.WriteString(cursor + StashStyle.Render(stashRef) + " " + PathStyle.Render(msg) + "\n")
+			}
+		}
+	}
+
+	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
+	b.WriteString(HelpStyle.Render("p pop • a apply • d drop • esc cancel"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }

@@ -140,6 +140,7 @@ type KeysConfig struct {
 	Fetch  string `toml:"fetch"`
 	Detail string `toml:"detail"`
 	Prune  string `toml:"prune"`
+	Stash  string `toml:"stash"`
 	Help   string `toml:"help"`
 	Quit   string `toml:"quit"`
 }
@@ -197,6 +198,7 @@ func DefaultConfig() *Config {
 			Fetch:  "f",
 			Detail: "tab",
 			Prune:  "P",
+			Stash:  "s",
 			Help:   "?",
 			Quit:   "q,ctrl+c",
 		},

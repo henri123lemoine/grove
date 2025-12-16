@@ -109,3 +109,75 @@ func PopStash(worktreePath string) error {
 	}
 	return nil
 }
+
+// StashEntry represents a single stash entry.
+type StashEntry struct {
+	Index   int    // 0 for stash@{0}, 1 for stash@{1}, etc.
+	Message string // The stash message
+}
+
+// ListStashes returns all stash entries for a worktree.
+func ListStashes(worktreePath string) ([]StashEntry, error) {
+	output, err := runGitInDir(worktreePath, "stash", "list", "--format=%gd %gs")
+	if err != nil {
+		return nil, err
+	}
+
+	output = strings.TrimSpace(output)
+	if output == "" {
+		return nil, nil
+	}
+
+	var entries []StashEntry
+	for _, line := range strings.Split(output, "\n") {
+		if line == "" {
+			continue
+		}
+		// Parse "stash@{0} message here"
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) < 1 {
+			continue
+		}
+		// Extract index from stash@{N}
+		indexStr := parts[0]
+		var index int
+		fmt.Sscanf(indexStr, "stash@{%d}", &index)
+
+		msg := ""
+		if len(parts) == 2 {
+			msg = parts[1]
+		}
+		entries = append(entries, StashEntry{Index: index, Message: msg})
+	}
+	return entries, nil
+}
+
+// ApplyStash applies a stash without removing it.
+func ApplyStash(worktreePath string, index int) error {
+	stashRef := fmt.Sprintf("stash@{%d}", index)
+	_, err := runGitInDir(worktreePath, "stash", "apply", stashRef)
+	if err != nil {
+		return fmt.Errorf("failed to apply stash: %w", err)
+	}
+	return nil
+}
+
+// DropStash removes a stash entry.
+func DropStash(worktreePath string, index int) error {
+	stashRef := fmt.Sprintf("stash@{%d}", index)
+	_, err := runGitInDir(worktreePath, "stash", "drop", stashRef)
+	if err != nil {
+		return fmt.Errorf("failed to drop stash: %w", err)
+	}
+	return nil
+}
+
+// PopStashAt pops a specific stash entry.
+func PopStashAt(worktreePath string, index int) error {
+	stashRef := fmt.Sprintf("stash@{%d}", index)
+	_, err := runGitInDir(worktreePath, "stash", "pop", stashRef)
+	if err != nil {
+		return fmt.Errorf("failed to pop stash: %w", err)
+	}
+	return nil
+}
