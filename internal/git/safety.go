@@ -50,11 +50,18 @@ type CommitInfo struct {
 	Message string
 }
 
+// isDetachedBranch checks if the branch string represents a detached HEAD.
+func isDetachedBranch(branch string) bool {
+	return strings.HasSuffix(branch, "(detached)")
+}
+
 // CheckSafety analyzes a worktree and returns safety information.
 func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error) {
 	info := &SafetyInfo{
 		Level: SafetyLevelSafe,
 	}
+
+	isDetached := isDetachedBranch(branch)
 
 	// 1. Check for uncommitted changes
 	isDirty, count, err := GetDirtyStatus(worktreePath)
@@ -65,7 +72,17 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 	}
 
 	// 2. Check if branch is merged to default
-	if branch != "" && branch != defaultBranch {
+	// For detached HEAD, extract the commit hash and check if it's merged
+	if isDetached {
+		// Extract hash from "abc1234 (detached)"
+		commitHash := strings.TrimSuffix(branch, " (detached)")
+		if commitHash != "" {
+			merged, err := IsBranchMerged(commitHash, defaultBranch)
+			if err == nil {
+				info.IsMerged = merged
+			}
+		}
+	} else if branch != "" && branch != defaultBranch {
 		merged, err := IsBranchMerged(branch, defaultBranch)
 		if err == nil {
 			info.IsMerged = merged
@@ -75,8 +92,8 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 		info.IsMerged = true
 	}
 
-	// 3. Check for unpushed commits
-	if branch != "" {
+	// 3. Check for unpushed commits (skip for detached HEAD - no tracking branch)
+	if branch != "" && !isDetached {
 		ahead, _, err := GetUpstreamStatus(worktreePath, branch)
 		if err == nil && ahead > 0 {
 			info.HasUnpushedCommits = true
@@ -89,7 +106,8 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 
 	// 4. Check for unique commits (the key safety feature)
 	// These are commits that exist ONLY on this branch and not on default
-	if branch != "" && branch != defaultBranch {
+	// For detached HEAD, we can't determine unique commits easily, so skip
+	if branch != "" && branch != defaultBranch && !isDetached {
 		commits, err := GetUniqueCommits(branch, defaultBranch)
 		if err == nil && len(commits) > 0 {
 			info.HasUniqueCommits = true

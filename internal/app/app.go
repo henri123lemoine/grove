@@ -387,6 +387,10 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.PR):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
+			if wt.IsDetached {
+				m.err = fmt.Errorf("cannot create PR from detached HEAD (checkout a branch first)")
+				return m, nil
+			}
 			m.prWorktree = wt
 			m.prState = "checking"
 			m.state = StatePR
@@ -397,6 +401,10 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			wt := &m.filteredWorktrees[m.cursor]
 			if wt.IsMain {
 				m.err = fmt.Errorf("cannot rename main worktree branch")
+				return m, nil
+			}
+			if wt.IsDetached {
+				m.err = fmt.Errorf("cannot rename detached HEAD (checkout a branch first)")
 				return m, nil
 			}
 			m.renameWorktree = wt

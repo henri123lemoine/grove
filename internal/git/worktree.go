@@ -18,6 +18,7 @@ type Worktree struct {
 	IsMain     bool
 	IsDirty    bool
 	DirtyFiles int
+	IsDetached bool // True if HEAD is detached (not on a branch)
 
 	// Upstream tracking
 	Ahead  int
@@ -77,21 +78,24 @@ func List() ([]Worktree, error) {
 		// Get dirty status
 		wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(wt.Path)
 
-		// Get upstream status
-		if wt.Branch != "" {
+		// Get upstream status (skip for detached HEAD - no tracking branch)
+		if wt.Branch != "" && !wt.IsDetached {
 			wt.Ahead, wt.Behind, _ = GetUpstreamStatus(wt.Path, wt.Branch)
 		}
 
 		// Get last commit
 		wt.LastCommitHash, wt.LastCommitMessage, wt.LastCommitTime, _ = GetLastCommit(wt.Path)
 
-		// Get merge status
-		if wt.Branch != "" && wt.Branch != repo.DefaultBranch {
+		// Get merge status (skip for detached HEAD - use commit hash instead)
+		if wt.Branch != "" && wt.Branch != repo.DefaultBranch && !wt.IsDetached {
 			wt.IsMerged, _ = IsBranchMerged(wt.Branch, repo.DefaultBranch)
+		} else if wt.IsDetached && wt.head != "" {
+			// For detached HEAD, check if the commit itself is merged
+			wt.IsMerged, _ = IsBranchMerged(wt.head, repo.DefaultBranch)
 		}
 
-		// Get unique commits count
-		if wt.Branch != "" && wt.Branch != repo.DefaultBranch {
+		// Get unique commits count (skip for detached HEAD)
+		if wt.Branch != "" && wt.Branch != repo.DefaultBranch && !wt.IsDetached {
 			commits, _ := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
 			wt.UniqueCommits = len(commits)
 		}
@@ -128,7 +132,8 @@ func parseWorktreeList(output string) []Worktree {
 		} else if line == "bare" && current != nil {
 			// Bare repo worktree - no branch
 		} else if line == "detached" && current != nil {
-			// Detached HEAD - use short hash as "branch"
+			// Detached HEAD - mark as detached and use short hash for display
+			current.IsDetached = true
 			if current.head != "" && len(current.head) >= 7 {
 				current.Branch = current.head[:7] + " (detached)"
 			}
