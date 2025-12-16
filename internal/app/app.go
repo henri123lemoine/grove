@@ -359,7 +359,15 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
 			m.selectedWorktree = wt
-			return m, openWorktree(m.config, wt)
+			// Find current worktree for stash_on_switch
+			var currentWt *git.Worktree
+			for i := range m.worktrees {
+				if m.worktrees[i].IsCurrent {
+					currentWt = &m.worktrees[i]
+					break
+				}
+			}
+			return m, openWorktree(m.config, wt, currentWt)
 		}
 	case key.Matches(msg, m.keys.New):
 		m.state = StateCreate
@@ -439,11 +447,19 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		for _, b := range m.branches {
 			if b.Name == branchName && b.IsWorktree {
 				// Find and open the existing worktree
-				for _, wt := range m.worktrees {
-					if wt.Branch == branchName {
+				for i := range m.worktrees {
+					if m.worktrees[i].Branch == branchName {
 						m.state = StateList
 						m.createInput.Reset()
-						return m, openWorktree(m.config, &wt)
+						// Find current worktree for stash_on_switch
+						var currentWt *git.Worktree
+						for j := range m.worktrees {
+							if m.worktrees[j].IsCurrent {
+								currentWt = &m.worktrees[j]
+								break
+							}
+						}
+						return m, openWorktree(m.config, &m.worktrees[i], currentWt)
 					}
 				}
 			}
@@ -714,8 +730,16 @@ func deleteWorktree(path string, force bool) tea.Cmd {
 	}
 }
 
-func openWorktree(cfg *config.Config, wt *git.Worktree) tea.Cmd {
+func openWorktree(cfg *config.Config, wt *git.Worktree, currentWt *git.Worktree) tea.Cmd {
 	return func() tea.Msg {
+		// Handle stash_on_switch: stash current worktree if dirty
+		if cfg.Open.StashOnSwitch && currentWt != nil && currentWt.IsDirty && currentWt.Path != wt.Path {
+			_, err := git.CreateStash(currentWt.Path, "grove: auto-stash before switching")
+			if err != nil {
+				return WorktreeOpenedMsg{Err: fmt.Errorf("failed to stash changes: %w", err), IsNewWindow: false}
+			}
+		}
+
 		isNew, err := exec.OpenWithConfig(cfg, wt)
 		return WorktreeOpenedMsg{Err: err, IsNewWindow: isNew}
 	}
