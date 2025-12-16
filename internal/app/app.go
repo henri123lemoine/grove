@@ -85,7 +85,7 @@ func New(cfg *config.Config, repo *git.Repo) Model {
 	// Create text inputs
 	createInput := textinput.New()
 	createInput.Placeholder = "branch-name"
-	createInput.CharLimit = 100
+	createInput.CharLimit = 250 // Git supports up to 255 bytes
 
 	deleteInput := textinput.New()
 	deleteInput.Placeholder = "Type 'delete' to confirm"
@@ -93,11 +93,11 @@ func New(cfg *config.Config, repo *git.Repo) Model {
 
 	filterInput := textinput.New()
 	filterInput.Placeholder = "filter..."
-	filterInput.CharLimit = 50
+	filterInput.CharLimit = 100
 
 	renameInput := textinput.New()
 	renameInput.Placeholder = "new-branch-name"
-	renameInput.CharLimit = 100
+	renameInput.CharLimit = 250 // Git supports up to 255 bytes
 
 	return Model{
 		config:      cfg,
