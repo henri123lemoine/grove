@@ -504,6 +504,7 @@ func renderHelp(p RenderParams) string {
 	b.WriteString(PathStyle.Render("  p        ") + "Create PR\n")
 	b.WriteString(PathStyle.Render("  r        ") + "Rename branch\n")
 	b.WriteString(PathStyle.Render("  f        ") + "Fetch all remotes\n")
+	b.WriteString(PathStyle.Render("  P        ") + "Prune stale worktrees\n")
 	b.WriteString(PathStyle.Render("  /        ") + "Filter worktrees\n")
 	b.WriteString(PathStyle.Render("  tab      ") + "Toggle detail panel\n")
 	b.WriteString("\n")

@@ -139,6 +139,7 @@ type KeysConfig struct {
 	Filter string `toml:"filter"`
 	Fetch  string `toml:"fetch"`
 	Detail string `toml:"detail"`
+	Prune  string `toml:"prune"`
 	Help   string `toml:"help"`
 	Quit   string `toml:"quit"`
 }
@@ -195,6 +196,7 @@ func DefaultConfig() *Config {
 			Filter: "/",
 			Fetch:  "f",
 			Detail: "tab",
+			Prune:  "P",
 			Help:   "?",
 			Quit:   "q,ctrl+c",
 		},

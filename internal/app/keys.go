@@ -24,6 +24,7 @@ type KeyMap struct {
 	Fetch  key.Binding
 	Filter key.Binding
 	Detail key.Binding
+	Prune  key.Binding
 
 	// General
 	Confirm key.Binding
@@ -82,6 +83,10 @@ func DefaultKeyMap() KeyMap {
 		Detail: key.NewBinding(
 			key.WithKeys("tab"),
 			key.WithHelp("tab", "details"),
+		),
+		Prune: key.NewBinding(
+			key.WithKeys("P"),
+			key.WithHelp("P", "prune"),
 		),
 		Confirm: key.NewBinding(
 			key.WithKeys("enter", "y"),
@@ -176,6 +181,12 @@ func KeyMapFromConfig(cfg *config.KeysConfig) KeyMap {
 		km.Detail = key.NewBinding(
 			key.WithKeys(parseKeys(cfg.Detail)...),
 			key.WithHelp(cfg.Detail, "details"),
+		)
+	}
+	if cfg.Prune != "" {
+		km.Prune = key.NewBinding(
+			key.WithKeys(parseKeys(cfg.Prune)...),
+			key.WithHelp(cfg.Prune, "prune"),
 		)
 	}
 	if cfg.Help != "" {

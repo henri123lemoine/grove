@@ -353,6 +353,37 @@ func RunPostCreateHooks(worktreePath string, commands []string, timeoutSeconds i
 	return nil
 }
 
+// Prune removes stale worktree entries (worktrees that no longer exist on disk).
+// Returns the number of pruned entries.
+func Prune() (int, error) {
+	// Get current worktrees to count before
+	beforeOutput, _ := runGit("worktree", "list", "--porcelain")
+	beforeCount := countWorktrees(beforeOutput)
+
+	// Run prune
+	_, err := runGit("worktree", "prune")
+	if err != nil {
+		return 0, fmt.Errorf("failed to prune worktrees: %w", err)
+	}
+
+	// Get count after
+	afterOutput, _ := runGit("worktree", "list", "--porcelain")
+	afterCount := countWorktrees(afterOutput)
+
+	return beforeCount - afterCount, nil
+}
+
+// countWorktrees counts the number of worktrees from porcelain output.
+func countWorktrees(output string) int {
+	count := 0
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, "worktree ") {
+			count++
+		}
+	}
+	return count
+}
+
 // runHookCommand runs a single hook command with optional timeout.
 func runHookCommand(worktreePath, cmdStr string, timeoutSeconds int) error {
 	var cmd *exec.Cmd

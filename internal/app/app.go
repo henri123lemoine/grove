@@ -284,6 +284,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = fmt.Errorf("post-create hook failed: %w", msg.Err)
 		}
 		return m, nil
+
+	case PruneCompletedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		// Refresh worktrees after pruning
+		return m, loadWorktrees
 	}
 
 	return m, nil
@@ -426,6 +434,8 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Detail):
 		m.showDetail = !m.showDetail
 		return m, nil
+	case key.Matches(msg, m.keys.Prune):
+		return m, pruneWorktrees
 	}
 	return m, nil
 }
@@ -756,6 +766,11 @@ func openWorktree(cfg *config.Config, wt *git.Worktree, currentWt *git.Worktree)
 func fetchAll() tea.Msg {
 	err := git.FetchAll()
 	return FetchCompletedMsg{Err: err}
+}
+
+func pruneWorktrees() tea.Msg {
+	count, err := git.Prune()
+	return PruneCompletedMsg{PrunedCount: count, Err: err}
 }
 
 func checkGHAuth() tea.Msg {
