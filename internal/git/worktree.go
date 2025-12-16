@@ -2,6 +2,7 @@ package git
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Worktree represents a Git worktree with its status.
@@ -22,8 +24,9 @@ type Worktree struct {
 	IsDetached bool // True if HEAD is detached (not on a branch)
 
 	// Upstream tracking
-	Ahead  int
-	Behind int
+	HasUpstream bool // True if branch has upstream tracking configured
+	Ahead       int
+	Behind      int
 
 	// Safety info
 	IsMerged      bool
@@ -93,7 +96,7 @@ func enrichWorktree(wt *Worktree, repo *Repo) {
 
 	// Get upstream status (skip for detached HEAD - no tracking branch)
 	if wt.Branch != "" && !wt.IsDetached {
-		wt.Ahead, wt.Behind, _ = GetUpstreamStatus(wt.Path, wt.Branch)
+		wt.Ahead, wt.Behind, wt.HasUpstream, _ = GetUpstreamStatus(wt.Path, wt.Branch)
 	}
 
 	// Get last commit
@@ -393,15 +396,17 @@ func countWorktrees(output string) int {
 
 // runHookCommand runs a single hook command with optional timeout.
 func runHookCommand(worktreePath, cmdStr string, timeoutSeconds int) error {
-	var cmd *exec.Cmd
+	var ctx context.Context
+	var cancel context.CancelFunc
 
 	if timeoutSeconds > 0 {
-		// Use timeout command for cross-platform support
-		cmd = exec.Command("sh", "-c", fmt.Sprintf("timeout %d %s", timeoutSeconds, cmdStr))
+		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
+		defer cancel()
 	} else {
-		cmd = exec.Command("sh", "-c", cmdStr)
+		ctx = context.Background()
 	}
 
+	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
 	cmd.Dir = worktreePath
 
 	// Capture output for better error messages
@@ -410,8 +415,8 @@ func runHookCommand(worktreePath, cmdStr string, timeoutSeconds int) error {
 	if err != nil {
 		outputStr := strings.TrimSpace(string(output))
 
-		// Check if it was a timeout
-		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 124 {
+		// Check if it was a timeout (context deadline exceeded)
+		if ctx.Err() == context.DeadlineExceeded {
 			return fmt.Errorf("post-create command timed out after %ds: %s", timeoutSeconds, cmdStr)
 		}
 

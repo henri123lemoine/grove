@@ -378,9 +378,16 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		// Calculate which worktree was clicked
 		// Account for header (2 lines) and box padding
 		headerHeight := 3
-		rowHeight := 3 // Each worktree entry is ~3 lines
 
-		clickedRow := (msg.Y - headerHeight) / rowHeight
+		// Row height depends on whether commits are shown
+		rowHeight := 2
+		if m.config != nil && m.config.UI.ShowCommits {
+			rowHeight = 3
+		}
+
+		// Also account for detail panel if shown (adds ~8 lines per selected item)
+		// and separator lines between entries (+1 per entry)
+		clickedRow := (msg.Y - headerHeight) / (rowHeight + 1) // +1 for separator
 		if clickedRow >= 0 && clickedRow < len(m.filteredWorktrees) {
 			m.cursor = clickedRow
 		}
@@ -391,6 +398,9 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 // handleListKeys handles key presses in the list view.
 func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Clear any previous error when user takes action
+	m.err = nil
+
 	switch {
 	case key.Matches(msg, m.keys.Up):
 		if m.cursor > 0 {
@@ -805,6 +815,7 @@ func (m Model) View() string {
 		StashEntries:      m.stashEntries,
 		StashCursor:       m.stashCursor,
 		SpinnerFrame:      m.spinner.View(),
+		HelpSections:      m.keys.HelpSections(),
 	})
 }
 

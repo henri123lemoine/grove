@@ -23,6 +23,18 @@ const (
 	StateStash
 )
 
+// HelpBinding represents a keybinding for help display.
+type HelpBinding struct {
+	Keys string
+	Desc string
+}
+
+// HelpSection represents a section of help bindings.
+type HelpSection struct {
+	Title    string
+	Bindings []HelpBinding
+}
+
 // RenderParams contains all parameters needed for rendering.
 type RenderParams struct {
 	State             int
@@ -52,6 +64,7 @@ type RenderParams struct {
 	StashEntries      []git.StashEntry
 	StashCursor       int
 	SpinnerFrame      string
+	HelpSections      []HelpSection
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -268,10 +281,12 @@ func renderDetailPanel(wt git.Worktree, width int) string {
 
 	// Upstream
 	upstreamStr := "no upstream"
-	if wt.Ahead > 0 || wt.Behind > 0 {
-		upstreamStr = fmt.Sprintf("↑%d ahead, ↓%d behind", wt.Ahead, wt.Behind)
-	} else if wt.Ahead == 0 && wt.Behind == 0 {
-		upstreamStr = "up to date"
+	if wt.HasUpstream {
+		if wt.Ahead > 0 || wt.Behind > 0 {
+			upstreamStr = fmt.Sprintf("↑%d ahead, ↓%d behind", wt.Ahead, wt.Behind)
+		} else {
+			upstreamStr = "up to date"
+		}
 	}
 	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Upstream: ") + upstreamStr)
 	b.WriteString(strings.Repeat(" ", max(0, 49-len(upstreamStr)-10)) + DividerStyle.Render("│") + "\n")
@@ -493,36 +508,22 @@ func renderHelp(p RenderParams) string {
 	b.WriteString(HeaderStyle.Render("HELP") + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
 
-	// Navigation section
-	b.WriteString(BranchStyle.Render("Navigation") + "\n")
-	b.WriteString(DividerStyle.Render(strings.Repeat("─", 40)) + "\n")
-	b.WriteString(PathStyle.Render("  ↑/k      ") + "Move up\n")
-	b.WriteString(PathStyle.Render("  ↓/j      ") + "Move down\n")
-	b.WriteString(PathStyle.Render("  g/Home   ") + "Go to first\n")
-	b.WriteString(PathStyle.Render("  G/End    ") + "Go to last\n")
-	b.WriteString(PathStyle.Render("  enter    ") + "Open worktree\n")
-	b.WriteString("\n")
-
-	// Actions section
-	b.WriteString(BranchStyle.Render("Actions") + "\n")
-	b.WriteString(DividerStyle.Render(strings.Repeat("─", 40)) + "\n")
-	b.WriteString(PathStyle.Render("  n        ") + "New worktree\n")
-	b.WriteString(PathStyle.Render("  d        ") + "Delete worktree\n")
-	b.WriteString(PathStyle.Render("  p        ") + "Create PR\n")
-	b.WriteString(PathStyle.Render("  r        ") + "Rename branch\n")
-	b.WriteString(PathStyle.Render("  f        ") + "Fetch all remotes\n")
-	b.WriteString(PathStyle.Render("  P        ") + "Prune stale worktrees\n")
-	b.WriteString(PathStyle.Render("  s        ") + "Manage stashes\n")
-	b.WriteString(PathStyle.Render("  /        ") + "Filter worktrees\n")
-	b.WriteString(PathStyle.Render("  tab      ") + "Toggle detail panel\n")
-	b.WriteString("\n")
-
-	// General section
-	b.WriteString(BranchStyle.Render("General") + "\n")
-	b.WriteString(DividerStyle.Render(strings.Repeat("─", 40)) + "\n")
-	b.WriteString(PathStyle.Render("  ?        ") + "Toggle this help\n")
-	b.WriteString(PathStyle.Render("  q        ") + "Quit\n")
-	b.WriteString(PathStyle.Render("  esc      ") + "Cancel / Close\n")
+	// Render each help section from the passed bindings
+	for i, section := range p.HelpSections {
+		b.WriteString(BranchStyle.Render(section.Title) + "\n")
+		b.WriteString(DividerStyle.Render(strings.Repeat("─", 40)) + "\n")
+		for _, binding := range section.Bindings {
+			// Pad keys to 10 chars for alignment
+			keys := binding.Keys
+			if len(keys) < 10 {
+				keys = keys + strings.Repeat(" ", 10-len(keys))
+			}
+			b.WriteString(PathStyle.Render("  "+keys) + " " + binding.Desc + "\n")
+		}
+		if i < len(p.HelpSections)-1 {
+			b.WriteString("\n")
+		}
+	}
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	b.WriteString(HelpStyle.Render("Press any key to close"))

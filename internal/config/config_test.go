@@ -108,38 +108,59 @@ func TestValidate(t *testing.T) {
 	}
 }
 
-func TestMergeConfig(t *testing.T) {
-	base := DefaultConfig()
-	file := &Config{
-		General: GeneralConfig{
-			DefaultBaseBranch: "develop",
-		},
-		Open: OpenConfig{
-			Command: "custom-command",
-		},
-		PR: PRConfig{
-			Command:  "glab mr create",
-			AutoPush: false,
-		},
+func TestLoadPreservesDefaults(t *testing.T) {
+	// Create a temp config file with partial config
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "config.toml")
+
+	// Only specify some values - others should keep defaults
+	tomlContent := `[general]
+default_base_branch = "develop"
+
+[open]
+command = "custom-command"
+
+[pr]
+command = "glab mr create"
+`
+	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
+		t.Fatalf("Failed to write test config: %v", err)
 	}
 
-	mergeConfig(base, file)
-
-	if base.General.DefaultBaseBranch != "develop" {
-		t.Errorf("Expected merged base branch 'develop', got %q", base.General.DefaultBaseBranch)
+	cfg, err := LoadFromPath(configPath)
+	if err != nil {
+		t.Fatalf("LoadFromPath() error: %v", err)
 	}
 
-	if base.Open.Command != "custom-command" {
-		t.Errorf("Expected merged command 'custom-command', got %q", base.Open.Command)
+	// Check specified values were loaded
+	if cfg.General.DefaultBaseBranch != "develop" {
+		t.Errorf("Expected base branch 'develop', got %q", cfg.General.DefaultBaseBranch)
 	}
 
-	if base.PR.Command != "glab mr create" {
-		t.Errorf("Expected merged PR command 'glab mr create', got %q", base.PR.Command)
+	if cfg.Open.Command != "custom-command" {
+		t.Errorf("Expected command 'custom-command', got %q", cfg.Open.Command)
+	}
+
+	if cfg.PR.Command != "glab mr create" {
+		t.Errorf("Expected PR command 'glab mr create', got %q", cfg.PR.Command)
 	}
 
 	// Check that non-specified values keep defaults
-	if base.General.WorktreeDir != ".worktrees" {
-		t.Errorf("Expected default worktree dir '.worktrees', got %q", base.General.WorktreeDir)
+	if cfg.General.WorktreeDir != ".worktrees" {
+		t.Errorf("Expected default worktree dir '.worktrees', got %q", cfg.General.WorktreeDir)
+	}
+
+	// IMPORTANT: Check that boolean defaults are preserved when not specified
+	if cfg.Open.ExitAfterOpen != true {
+		t.Error("Expected ExitAfterOpen to remain true (default) when not specified in config")
+	}
+
+	if cfg.PR.AutoPush != true {
+		t.Error("Expected AutoPush to remain true (default) when not specified in config")
+	}
+
+	if cfg.Safety.ConfirmDirty != true {
+		t.Error("Expected ConfirmDirty to remain true (default) when not specified in config")
 	}
 }
 
