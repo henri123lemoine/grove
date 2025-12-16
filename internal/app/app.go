@@ -617,9 +617,25 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
+		// Remember the currently selected worktree before clearing filter
+		var selectedPath string
+		if m.cursor >= 0 && m.cursor < len(m.filteredWorktrees) {
+			selectedPath = m.filteredWorktrees[m.cursor].Path
+		}
+
 		m.state = StateList
 		m.filterInput.Reset()
 		m.applyFilter()
+
+		// Try to restore cursor to the same worktree
+		if selectedPath != "" {
+			for i, wt := range m.filteredWorktrees {
+				if wt.Path == selectedPath {
+					m.cursor = i
+					break
+				}
+			}
+		}
 		return m, nil
 	case tea.KeyEnter:
 		m.state = StateList
