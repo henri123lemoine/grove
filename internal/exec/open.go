@@ -92,7 +92,8 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree) (bool, error) {
 
 	// Apply layout if new window and layout is configured
 	if isNewWindow && cfg.Open.Layout != "none" && cfg.Open.Layout != "" {
-		applyLayout(cfg, wt, repo)
+		// Layout errors are non-fatal - we still opened the window successfully
+		_ = applyLayout(cfg, wt, repo)
 	}
 
 	return isNewWindow, nil

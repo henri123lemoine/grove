@@ -254,14 +254,9 @@ func detectTheme() ColorPalette {
 		return lightPalette
 	}
 
-	// macOS Terminal.app defaults to light
-	if termProgram == "Apple_Terminal" {
-		// Check if it's using a dark profile
-		if os.Getenv("TERM_PROGRAM_VERSION") != "" {
-			// Default to system appearance - could be either
-			// Fall through to dark as safer default
-		}
-	}
+	// macOS Terminal.app - we can't reliably detect its theme,
+	// so fall through to dark as the safer default for most terminals
+	_ = termProgram // Acknowledge we checked it
 
 	// Default to dark theme (most common in terminals)
 	return darkPalette

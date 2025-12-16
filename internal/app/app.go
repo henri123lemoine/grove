@@ -373,8 +373,8 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	switch msg.Type {
-	case tea.MouseLeft:
+	// Handle left mouse button press
+	if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress {
 		// Calculate which worktree was clicked
 		// Account for header (2 lines) and box padding
 		headerHeight := 3
@@ -384,9 +384,6 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		if clickedRow >= 0 && clickedRow < len(m.filteredWorktrees) {
 			m.cursor = clickedRow
 		}
-	case tea.MouseRelease:
-		// Double-click detection would need timing logic
-		// For now, we just select on click
 	}
 
 	return m, nil

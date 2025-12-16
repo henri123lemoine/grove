@@ -141,7 +141,7 @@ func ListStashes(worktreePath string) ([]StashEntry, error) {
 		// Extract index from stash@{N}
 		indexStr := parts[0]
 		var index int
-		fmt.Sscanf(indexStr, "stash@{%d}", &index)
+		_, _ = fmt.Sscanf(indexStr, "stash@{%d}", &index)
 
 		msg := ""
 		if len(parts) == 2 {
