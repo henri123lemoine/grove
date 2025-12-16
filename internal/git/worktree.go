@@ -67,7 +67,7 @@ func List() ([]Worktree, error) {
 		}
 
 		// Check if this is the main worktree
-		wt.IsMain = wt.Path == repo.Root || (repo.IsBare && i == 0)
+		wt.IsMain = wt.Path == repo.MainWorktreeRoot || (repo.IsBare && i == 0)
 
 		// Get dirty status
 		wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(wt.Path)
