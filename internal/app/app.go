@@ -273,15 +273,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case FileCopyCompletedMsg:
 		if msg.Err != nil {
-			// Non-fatal, just log
-			m.err = msg.Err
+			// Show error to user with clear context
+			m.err = fmt.Errorf("file copy failed: %w", msg.Err)
 		}
 		return m, nil
 
 	case PostCreateHooksCompletedMsg:
 		if msg.Err != nil {
-			// Non-fatal, just log
-			m.err = msg.Err
+			// Show error to user with clear context
+			m.err = fmt.Errorf("post-create hook failed: %w", msg.Err)
 		}
 		return m, nil
 	}
