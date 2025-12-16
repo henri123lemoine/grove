@@ -341,14 +341,21 @@ func copyDir(src, dst string, ignores []string) error {
 }
 
 // RunPostCreateHooks runs post-create commands in the worktree directory.
+// Note: Commands run without stdin access since grove is a TUI application.
+// Use non-interactive commands (e.g., "npm install --yes" instead of "npm install").
 func RunPostCreateHooks(worktreePath string, commands []string) error {
 	for _, cmdStr := range commands {
 		cmd := exec.Command("sh", "-c", cmdStr)
 		cmd.Dir = worktreePath
-		cmd.Stdout = nil
-		cmd.Stderr = nil
 
-		if err := cmd.Run(); err != nil {
+		// Capture output for better error messages
+		// stdin is nil - interactive commands won't work
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			outputStr := strings.TrimSpace(string(output))
+			if outputStr != "" {
+				return fmt.Errorf("post-create command failed: %s: %w\nOutput: %s", cmdStr, err, outputStr)
+			}
 			return fmt.Errorf("post-create command failed: %s: %w", cmdStr, err)
 		}
 	}
