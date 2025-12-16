@@ -27,8 +27,9 @@ type SafetyCheckedMsg struct {
 
 // WorktreeCreatedMsg is sent when a worktree is created.
 type WorktreeCreatedMsg struct {
-	Path string
-	Err  error
+	Path   string
+	Branch string
+	Err    error
 }
 
 // WorktreeDeletedMsg is sent when a worktree is deleted.
@@ -39,7 +40,8 @@ type WorktreeDeletedMsg struct {
 
 // WorktreeOpenedMsg is sent when a worktree is opened.
 type WorktreeOpenedMsg struct {
-	Err error
+	Err       error
+	IsNewWindow bool
 }
 
 // FetchCompletedMsg is sent when fetch completes.
@@ -49,5 +51,48 @@ type FetchCompletedMsg struct {
 
 // ErrorMsg is a general error message.
 type ErrorMsg struct {
+	Err error
+}
+
+// GHAuthCheckedMsg is sent when gh auth status is checked.
+type GHAuthCheckedMsg struct {
+	Authenticated bool
+	Err           error
+}
+
+// PushCompletedMsg is sent when branch push completes.
+type PushCompletedMsg struct {
+	Err error
+}
+
+// PRCreatedMsg is sent when PR creation completes.
+type PRCreatedMsg struct {
+	Err error
+}
+
+// BranchRenamedMsg is sent when branch rename completes.
+type BranchRenamedMsg struct {
+	OldName string
+	NewName string
+	Err     error
+}
+
+// StashCreatedMsg is sent when a stash is created.
+type StashCreatedMsg struct {
+	Err error
+}
+
+// StashPoppedMsg is sent when a stash is popped.
+type StashPoppedMsg struct {
+	Err error
+}
+
+// FileCopyCompletedMsg is sent when file copy completes.
+type FileCopyCompletedMsg struct {
+	Err error
+}
+
+// PostCreateHooksCompletedMsg is sent when post-create hooks complete.
+type PostCreateHooksCompletedMsg struct {
 	Err error
 }

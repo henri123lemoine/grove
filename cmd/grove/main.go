@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
@@ -11,12 +12,48 @@ import (
 	"github.com/henrilemoine/grove/internal/git"
 )
 
+var (
+	version = "dev"
+)
+
 func main() {
+	// Parse flags
+	printSelected := flag.Bool("print-selected", false, "Print the selected worktree path on exit")
+	printPath := flag.Bool("p", false, "Alias for --print-selected")
+	showVersion := flag.Bool("version", false, "Show version")
+	showHelp := flag.Bool("help", false, "Show help")
+	flag.BoolVar(showHelp, "h", false, "Show help")
+	flag.Parse()
+
+	if *showHelp {
+		printUsage()
+		os.Exit(0)
+	}
+
+	if *showVersion {
+		fmt.Printf("grove %s\n", version)
+		os.Exit(0)
+	}
+
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
 		os.Exit(1)
+	}
+
+	// Show config validation warnings
+	if warnings := cfg.Validate(); len(warnings) > 0 {
+		for _, w := range warnings {
+			fmt.Fprintf(os.Stderr, "Config warning: %s\n", w)
+		}
+	}
+
+	// Handle first-run experience
+	if config.IsFirstRun() {
+		if err := config.CreateDefaultConfigFile(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not create default config: %v\n", err)
+		}
 	}
 
 	// Detect git repository
@@ -29,7 +66,10 @@ func main() {
 
 	// Create and run the application
 	model := app.New(cfg, repo)
-	p := tea.NewProgram(model, tea.WithAltScreen())
+	p := tea.NewProgram(model,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
 
 	finalModel, err := p.Run()
 	if err != nil {
@@ -39,9 +79,52 @@ func main() {
 
 	// Check if we need to do anything after quitting
 	if m, ok := finalModel.(app.Model); ok {
+		// Print selected worktree path if requested
+		if (*printSelected || *printPath) && m.SelectedWorktree() != nil {
+			fmt.Println(m.SelectedWorktree().Path)
+		}
+
 		if m.ShouldQuit() {
-			// Normal exit
 			os.Exit(0)
 		}
 	}
+}
+
+func printUsage() {
+	fmt.Println(`grove - Terminal UI for Git worktrees
+
+Usage:
+  grove [flags]
+
+Flags:
+  -p, --print-selected  Print the selected worktree path on exit
+                        Useful for shell integration: cd "$(grove -p)"
+  --version             Show version
+  -h, --help            Show this help
+
+Navigation:
+  ↑/k          Move up
+  ↓/j          Move down
+  g/Home       Go to first
+  G/End        Go to last
+  enter        Open worktree
+
+Actions:
+  n            New worktree
+  d            Delete worktree
+  p            Create PR
+  r            Rename branch
+  f            Fetch all remotes
+  /            Filter worktrees
+  tab          Toggle detail panel
+
+General:
+  ?            Show help
+  q            Quit
+  esc          Cancel
+
+Configuration:
+  Config file: ~/.config/grove/config.toml
+
+For more information, see https://github.com/henrilemoine/grove`)
 }

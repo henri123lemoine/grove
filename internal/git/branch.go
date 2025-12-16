@@ -1,14 +1,16 @@
 package git
 
 import (
+	"sort"
 	"strings"
 )
 
 // Branch represents a Git branch.
 type Branch struct {
-	Name     string
-	IsRemote bool
-	IsCurrent bool
+	Name       string
+	IsRemote   bool
+	IsCurrent  bool
+	IsWorktree bool // Branch is checked out in a worktree
 }
 
 // ListBranches returns all local branches.
@@ -75,6 +77,81 @@ func ListAllBranches() ([]Branch, error) {
 	}
 
 	return append(local, remote...), nil
+}
+
+// ListAllBranchesWithWorktreeStatus returns all branches with worktree status.
+// Branches are sorted: current first, then default branch, then local, then remote.
+func ListAllBranchesWithWorktreeStatus() ([]Branch, error) {
+	// Get all branches
+	local, err := ListBranches()
+	if err != nil {
+		return nil, err
+	}
+
+	remote, err := ListRemoteBranches()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get worktree branches
+	worktreeBranches, err := GetWorktreeBranches()
+	if err != nil {
+		worktreeBranches = make(map[string]bool)
+	}
+
+	// Get repo for default branch
+	repo, _ := GetRepo()
+	defaultBranch := "main"
+	if repo != nil && repo.DefaultBranch != "" {
+		defaultBranch = repo.DefaultBranch
+	}
+
+	// Mark worktree status
+	for i := range local {
+		local[i].IsWorktree = worktreeBranches[local[i].Name]
+	}
+	for i := range remote {
+		// Extract branch name without remote prefix (origin/main -> main)
+		parts := strings.SplitN(remote[i].Name, "/", 2)
+		if len(parts) == 2 {
+			remote[i].IsWorktree = worktreeBranches[parts[1]]
+		}
+	}
+
+	// Combine all branches
+	allBranches := append(local, remote...)
+
+	// Sort: current first, then default, then worktrees, then local, then remote
+	sort.SliceStable(allBranches, func(i, j int) bool {
+		bi, bj := allBranches[i], allBranches[j]
+
+		// Current branch first
+		if bi.IsCurrent != bj.IsCurrent {
+			return bi.IsCurrent
+		}
+
+		// Default branch second
+		iDefault := bi.Name == defaultBranch
+		jDefault := bj.Name == defaultBranch
+		if iDefault != jDefault {
+			return iDefault
+		}
+
+		// Worktree branches third
+		if bi.IsWorktree != bj.IsWorktree {
+			return bi.IsWorktree
+		}
+
+		// Local before remote
+		if bi.IsRemote != bj.IsRemote {
+			return !bi.IsRemote
+		}
+
+		// Alphabetical
+		return bi.Name < bj.Name
+	})
+
+	return allBranches, nil
 }
 
 // CurrentBranch returns the current branch name.

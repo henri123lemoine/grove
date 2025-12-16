@@ -25,6 +25,8 @@ const (
 	StateFilter
 	StateFetching
 	StateHelp
+	StatePR
+	StateRename
 )
 
 // Model is the main application model.
@@ -58,6 +60,14 @@ type Model struct {
 	// Filter
 	filterInput textinput.Model
 
+	// PR flow
+	prWorktree *git.Worktree
+	prState    string // "checking", "pushing", "creating"
+
+	// Rename flow
+	renameWorktree *git.Worktree
+	renameInput    textinput.Model
+
 	// UI
 	width      int
 	height     int
@@ -65,8 +75,9 @@ type Model struct {
 	showDetail bool
 
 	// Exit behavior
-	shouldQuit    bool
-	openAfterQuit *git.Worktree
+	shouldQuit       bool
+	openAfterQuit    *git.Worktree
+	selectedWorktree *git.Worktree
 }
 
 // New creates a new Model.
@@ -84,13 +95,18 @@ func New(cfg *config.Config, repo *git.Repo) Model {
 	filterInput.Placeholder = "filter..."
 	filterInput.CharLimit = 50
 
+	renameInput := textinput.New()
+	renameInput.Placeholder = "new-branch-name"
+	renameInput.CharLimit = 100
+
 	return Model{
 		config:      cfg,
 		repo:        repo,
-		keys:        DefaultKeyMap(),
+		keys:        KeyMapFromConfig(&cfg.Keys),
 		createInput: createInput,
 		deleteInput: deleteInput,
 		filterInput: filterInput,
+		renameInput: renameInput,
 		state:       StateList,
 		loading:     true,
 	}
@@ -100,7 +116,7 @@ func New(cfg *config.Config, repo *git.Repo) Model {
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		loadWorktrees,
-		loadBranches,
+		loadBranchesWithTypes,
 	)
 }
 
@@ -121,6 +137,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// Delegate to state-specific handler
 		return m.handleKeyPress(msg)
+
+	case tea.MouseMsg:
+		return m.handleMouse(msg)
 
 	case WorktreesLoadedMsg:
 		m.loading = false
@@ -160,6 +179,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.state = StateList
 		m.createInput.Reset()
+		// Run post-create operations
+		if msg.Err == nil && msg.Path != "" {
+			return m, tea.Batch(
+				loadWorktrees,
+				runPostCreateOperations(m.config, msg.Path, msg.Branch),
+			)
+		}
 		return m, loadWorktrees
 
 	case WorktreeDeletedMsg:
@@ -190,6 +216,74 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, loadWorktrees
+
+	case GHAuthCheckedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+			m.state = StateList
+			m.prWorktree = nil
+			return m, nil
+		}
+		if !msg.Authenticated {
+			m.err = fmt.Errorf("gh CLI not authenticated. Run: gh auth login")
+			m.state = StateList
+			m.prWorktree = nil
+			return m, nil
+		}
+		// Auth OK, check if we need to push
+		m.prState = "pushing"
+		wt := m.prWorktree
+		if !git.HasUpstream(wt.Path, wt.Branch) && m.config.PR.AutoPush {
+			return m, pushBranch(wt.Path, wt.Branch)
+		}
+		// No push needed, create PR
+		m.prState = "creating"
+		return m, createPR(wt.Path, m.config.PR.Command)
+
+	case PushCompletedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+			m.state = StateList
+			m.prWorktree = nil
+			return m, nil
+		}
+		// Push complete, create PR
+		m.prState = "creating"
+		return m, createPR(m.prWorktree.Path, m.config.PR.Command)
+
+	case PRCreatedMsg:
+		m.state = StateList
+		m.prWorktree = nil
+		if msg.Err != nil {
+			m.err = msg.Err
+		}
+		// Exit after PR creation to let user interact with gh
+		m.shouldQuit = true
+		return m, tea.Quit
+
+	case BranchRenamedMsg:
+		m.state = StateList
+		m.renameInput.Reset()
+		m.renameWorktree = nil
+		if msg.Err != nil {
+			m.err = msg.Err
+			return m, nil
+		}
+		return m, loadWorktrees
+
+	case FileCopyCompletedMsg:
+		if msg.Err != nil {
+			// Non-fatal, just log
+			m.err = msg.Err
+		}
+		return m, nil
+
+	case PostCreateHooksCompletedMsg:
+		if msg.Err != nil {
+			// Non-fatal, just log
+			m.err = msg.Err
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -210,7 +304,36 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFilterKeys(msg)
 	case StateHelp:
 		return m.handleHelpKeys(msg)
+	case StatePR:
+		return m.handlePRKeys(msg)
+	case StateRename:
+		return m.handleRenameKeys(msg)
 	}
+	return m, nil
+}
+
+// handleMouse handles mouse events.
+func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	if m.state != StateList {
+		return m, nil
+	}
+
+	switch msg.Type {
+	case tea.MouseLeft:
+		// Calculate which worktree was clicked
+		// Account for header (2 lines) and box padding
+		headerHeight := 3
+		rowHeight := 3 // Each worktree entry is ~3 lines
+
+		clickedRow := (msg.Y - headerHeight) / rowHeight
+		if clickedRow >= 0 && clickedRow < len(m.filteredWorktrees) {
+			m.cursor = clickedRow
+		}
+	case tea.MouseRelease:
+		// Double-click detection would need timing logic
+		// For now, we just select on click
+	}
+
 	return m, nil
 }
 
@@ -235,7 +358,8 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Open):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
-			return m, openWorktree(m.config.Open.Command, wt)
+			m.selectedWorktree = wt
+			return m, openWorktree(m.config, wt)
 		}
 	case key.Matches(msg, m.keys.New):
 		m.state = StateCreate
@@ -251,6 +375,27 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.deleteWorktree = wt
 			m.state = StateDelete
 			return m, checkSafety(wt.Path, wt.Branch, m.repo.DefaultBranch)
+		}
+	case key.Matches(msg, m.keys.PR):
+		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
+			wt := &m.filteredWorktrees[m.cursor]
+			m.prWorktree = wt
+			m.prState = "checking"
+			m.state = StatePR
+			return m, checkGHAuth
+		}
+	case key.Matches(msg, m.keys.Rename):
+		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
+			wt := &m.filteredWorktrees[m.cursor]
+			if wt.IsMain {
+				m.err = fmt.Errorf("cannot rename main worktree branch")
+				return m, nil
+			}
+			m.renameWorktree = wt
+			m.renameInput.SetValue(wt.Branch)
+			m.renameInput.Focus()
+			m.state = StateRename
+			return m, textinput.Blink
 		}
 	case key.Matches(msg, m.keys.Filter):
 		m.state = StateFilter
@@ -289,6 +434,21 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.createBranch = branchName
+
+		// Check if this branch already has a worktree
+		for _, b := range m.branches {
+			if b.Name == branchName && b.IsWorktree {
+				// Find and open the existing worktree
+				for _, wt := range m.worktrees {
+					if wt.Branch == branchName {
+						m.state = StateList
+						m.createInput.Reset()
+						return m, openWorktree(m.config, &wt)
+					}
+				}
+			}
+		}
+
 		// Check if branch exists
 		m.createIsNew = !git.BranchExists(branchName)
 		if m.createIsNew {
@@ -399,6 +559,42 @@ func (m Model) handleFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+// handlePRKeys handles key presses in PR flow.
+func (m Model) handlePRKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.state = StateList
+		m.prWorktree = nil
+		return m, nil
+	}
+	// PR flow is mostly automatic, just wait for messages
+	return m, nil
+}
+
+// handleRenameKeys handles key presses in rename flow.
+func (m Model) handleRenameKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.state = StateList
+		m.renameInput.Reset()
+		m.renameWorktree = nil
+		return m, nil
+	case tea.KeyEnter:
+		newName := m.renameInput.Value()
+		if newName == "" || newName == m.renameWorktree.Branch {
+			m.state = StateList
+			m.renameInput.Reset()
+			m.renameWorktree = nil
+			return m, nil
+		}
+		return m, renameBranch(m.renameWorktree.Path, m.renameWorktree.Branch, newName)
+	}
+
+	var cmd tea.Cmd
+	m.renameInput, cmd = m.renameInput.Update(msg)
+	return m, cmd
+}
+
 // worktreeSource implements fuzzy.Source for worktree fuzzy matching.
 type worktreeSource []git.Worktree
 
@@ -446,6 +642,7 @@ func (m Model) View() string {
 		Loading:           m.loading,
 		Err:               m.err,
 		Repo:              m.repo,
+		Config:            m.config,
 		FilterInput:       m.filterInput.View(),
 		FilterValue:       m.filterInput.Value(),
 		CreateInput:       m.createInput.View(),
@@ -456,6 +653,10 @@ func (m Model) View() string {
 		Branches:          m.branches,
 		BaseBranchIndex:   m.baseBranchIndex,
 		CreateBranch:      m.createBranch,
+		PRWorktree:        m.prWorktree,
+		PRState:           m.prState,
+		RenameWorktree:    m.renameWorktree,
+		RenameInput:       m.renameInput.View(),
 	})
 }
 
@@ -469,6 +670,11 @@ func (m Model) OpenAfterQuit() *git.Worktree {
 	return m.openAfterQuit
 }
 
+// SelectedWorktree returns the selected worktree (for --print-selected).
+func (m Model) SelectedWorktree() *git.Worktree {
+	return m.selectedWorktree
+}
+
 // Commands
 
 func loadWorktrees() tea.Msg {
@@ -476,8 +682,8 @@ func loadWorktrees() tea.Msg {
 	return WorktreesLoadedMsg{Worktrees: worktrees, Err: err}
 }
 
-func loadBranches() tea.Msg {
-	branches, err := git.ListBranches()
+func loadBranchesWithTypes() tea.Msg {
+	branches, err := git.ListAllBranchesWithWorktreeStatus()
 	return BranchesLoadedMsg{Branches: branches, Err: err}
 }
 
@@ -497,7 +703,7 @@ func createWorktree(cfg *config.Config, branch string, isNew bool, baseBranch st
 			path = repo.MainWorktreeRoot + "/" + cfg.General.WorktreeDir + "/" + sanitizePath(branch)
 		}
 		err := git.Create(path, branch, isNew, baseBranch)
-		return WorktreeCreatedMsg{Path: path, Err: err}
+		return WorktreeCreatedMsg{Path: path, Branch: branch, Err: err}
 	}
 }
 
@@ -508,16 +714,83 @@ func deleteWorktree(path string, force bool) tea.Cmd {
 	}
 }
 
-func openWorktree(command string, wt *git.Worktree) tea.Cmd {
+func openWorktree(cfg *config.Config, wt *git.Worktree) tea.Cmd {
 	return func() tea.Msg {
-		err := exec.OpenDetached(command, wt)
-		return WorktreeOpenedMsg{Err: err}
+		isNew, err := exec.OpenWithConfig(cfg, wt)
+		return WorktreeOpenedMsg{Err: err, IsNewWindow: isNew}
 	}
 }
 
 func fetchAll() tea.Msg {
 	err := git.FetchAll()
 	return FetchCompletedMsg{Err: err}
+}
+
+func checkGHAuth() tea.Msg {
+	authenticated, err := git.CheckGHAuth()
+	return GHAuthCheckedMsg{Authenticated: authenticated, Err: err}
+}
+
+func pushBranch(worktreePath, branch string) tea.Cmd {
+	return func() tea.Msg {
+		err := git.PushBranch(worktreePath, branch)
+		return PushCompletedMsg{Err: err}
+	}
+}
+
+func createPR(worktreePath, command string) tea.Cmd {
+	return func() tea.Msg {
+		err := git.CreatePR(worktreePath, command)
+		return PRCreatedMsg{Err: err}
+	}
+}
+
+func renameBranch(worktreePath, oldName, newName string) tea.Cmd {
+	return func() tea.Msg {
+		err := git.RenameBranch(worktreePath, oldName, newName)
+		return BranchRenamedMsg{OldName: oldName, NewName: newName, Err: err}
+	}
+}
+
+func runPostCreateOperations(cfg *config.Config, path, branch string) tea.Cmd {
+	return func() tea.Msg {
+		// Check for template match
+		template := cfg.GetTemplateForBranch(branch)
+
+		// Determine patterns to use
+		copyPatterns := cfg.Worktree.CopyPatterns
+		postCreateCmd := cfg.Worktree.PostCreateCmd
+
+		if template != nil {
+			if len(template.CopyPatterns) > 0 {
+				copyPatterns = template.CopyPatterns
+			}
+			if len(template.PostCreateCmd) > 0 {
+				postCreateCmd = template.PostCreateCmd
+			}
+		}
+
+		// Copy files
+		if len(copyPatterns) > 0 {
+			repo, _ := git.GetRepo()
+			if repo != nil {
+				err := git.CopyFiles(repo.MainWorktreeRoot, path, copyPatterns, cfg.Worktree.CopyIgnores)
+				if err != nil {
+					return PostCreateHooksCompletedMsg{Err: err}
+				}
+			}
+		}
+
+		// Run post-create commands
+		if len(postCreateCmd) > 0 {
+			err := git.RunPostCreateHooks(path, postCreateCmd)
+			if err != nil {
+				return PostCreateHooksCompletedMsg{Err: err}
+			}
+		}
+
+		return PostCreateHooksCompletedMsg{Err: nil}
+	}
 }
 
 // Helper functions
@@ -550,4 +823,3 @@ func replace(s, old, new string) string {
 	}
 	return s
 }
-

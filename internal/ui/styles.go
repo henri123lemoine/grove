@@ -15,6 +15,7 @@ var (
 	ColorMuted     = lipgloss.Color("245") // Light gray
 	ColorHighlight = lipgloss.Color("6")   // Cyan
 	ColorText      = lipgloss.Color("252") // Light text
+	ColorPurple    = lipgloss.Color("5")   // Purple for stash
 )
 
 // Styles
@@ -67,6 +68,10 @@ var (
 	UniqueStyle = lipgloss.NewStyle().
 			Foreground(ColorDanger)
 
+	// Stash style
+	StashStyle = lipgloss.NewStyle().
+			Foreground(ColorPurple)
+
 	// Path style - more readable
 	PathStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted)
@@ -97,6 +102,16 @@ var (
 	// Divider style
 	DividerStyle = lipgloss.NewStyle().
 			Foreground(ColorSecondary)
+
+	// Branch type tag styles
+	WorktreeTagStyle = lipgloss.NewStyle().
+				Foreground(ColorHighlight)
+
+	LocalTagStyle = lipgloss.NewStyle().
+			Foreground(ColorMuted)
+
+	RemoteTagStyle = lipgloss.NewStyle().
+			Foreground(ColorWarning)
 )
 
 // Symbols
@@ -110,4 +125,5 @@ const (
 	SymbolUnique  = "!"
 	SymbolCurrent = "•"
 	SymbolDivider = "─"
+	SymbolStash   = "📦"
 )

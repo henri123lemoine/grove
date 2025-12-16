@@ -1,0 +1,34 @@
+// Zellij configuration for grove integration
+// Add this to ~/.config/zellij/config.kdl
+
+keybinds {
+    normal {
+        // Open grove with Ctrl+g
+        bind "Ctrl g" {
+            Run "grove" {
+                close_on_exit true
+            }
+        }
+    }
+
+    // Or in locked mode if you prefer
+    locked {
+        bind "Ctrl g" {
+            Run "grove" {
+                close_on_exit true
+            }
+        }
+    }
+}
+
+// Alternative: Use a floating pane for grove
+// keybinds {
+//     normal {
+//         bind "Ctrl g" {
+//             Run "grove" {
+//                 floating true
+//                 close_on_exit true
+//             }
+//         }
+//     }
+// }

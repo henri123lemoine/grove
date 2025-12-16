@@ -3,7 +3,9 @@ package git
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 )
@@ -24,6 +26,9 @@ type Worktree struct {
 	// Safety info
 	IsMerged      bool
 	UniqueCommits int // Commits that exist only on this branch
+
+	// Stash info
+	StashCount int
 
 	// Last commit
 	LastCommitHash    string
@@ -90,6 +95,9 @@ func List() ([]Worktree, error) {
 			commits, _ := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
 			wt.UniqueCommits = len(commits)
 		}
+
+		// Get stash count
+		wt.StashCount, _ = GetStashCount(wt.Path)
 	}
 
 	return worktrees, nil
@@ -205,4 +213,139 @@ func (w *Worktree) BranchShort() string {
 	}
 	parts := strings.Split(w.Branch, "/")
 	return parts[len(parts)-1]
+}
+
+// CopyFiles copies files matching patterns from source to dest worktree.
+func CopyFiles(sourceDir, destDir string, patterns, ignores []string) error {
+	for _, pattern := range patterns {
+		// Find files matching pattern
+		matches, err := filepath.Glob(filepath.Join(sourceDir, pattern))
+		if err != nil {
+			continue
+		}
+
+		for _, srcPath := range matches {
+			// Check if ignored
+			relPath, _ := filepath.Rel(sourceDir, srcPath)
+			if isIgnored(relPath, ignores) {
+				continue
+			}
+
+			// Determine destination path
+			destPath := filepath.Join(destDir, relPath)
+
+			// Copy file or directory
+			info, err := os.Stat(srcPath)
+			if err != nil {
+				continue
+			}
+
+			if info.IsDir() {
+				err = copyDir(srcPath, destPath, ignores)
+			} else {
+				err = copyFile(srcPath, destPath)
+			}
+			if err != nil {
+				return fmt.Errorf("failed to copy %s: %w", relPath, err)
+			}
+		}
+	}
+	return nil
+}
+
+// isIgnored checks if a path matches any ignore pattern.
+func isIgnored(path string, ignores []string) bool {
+	for _, pattern := range ignores {
+		matched, err := filepath.Match(pattern, path)
+		if err == nil && matched {
+			return true
+		}
+		// Also check against base name
+		matched, err = filepath.Match(pattern, filepath.Base(path))
+		if err == nil && matched {
+			return true
+		}
+	}
+	return false
+}
+
+// copyFile copies a single file.
+func copyFile(src, dst string) error {
+	// Ensure parent directory exists
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return err
+	}
+
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	dstFile, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	_, err = io.Copy(dstFile, srcFile)
+	return err
+}
+
+// copyDir copies a directory recursively.
+func copyDir(src, dst string, ignores []string) error {
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if isIgnored(entry.Name(), ignores) {
+			continue
+		}
+
+		if entry.IsDir() {
+			if err := copyDir(srcPath, dstPath, ignores); err != nil {
+				return err
+			}
+		} else {
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// RunPostCreateHooks runs post-create commands in the worktree directory.
+func RunPostCreateHooks(worktreePath string, commands []string) error {
+	for _, cmdStr := range commands {
+		cmd := exec.Command("sh", "-c", cmdStr)
+		cmd.Dir = worktreePath
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("post-create command failed: %s: %w", cmdStr, err)
+		}
+	}
+	return nil
 }

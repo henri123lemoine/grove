@@ -1,0 +1,57 @@
+# Grove Configuration for tmux users
+# Copy to ~/.config/grove/config.toml
+
+[general]
+default_base_branch = "main"
+worktree_dir = ".worktrees"
+
+[open]
+# Create new tmux window with branch name
+command = "tmux new-window -n {branch_short} -c {path}"
+
+# Alternative: Switch to existing window or create new
+# command = "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}"
+
+# How to detect existing windows: "path", "name", or "none"
+detect_existing = "path"
+
+# Exit grove after opening (recommended for popup usage)
+exit_after_open = true
+
+# Layout to apply after creating new window: "none", "dev", or "custom"
+layout = "none"
+
+# Custom layout command (only if layout = "custom")
+# layout_command = "tmux split-window -h -p 50 -c {path}"
+
+# Window name style: "short" (auth) or "full" (feature/auth)
+window_name_style = "short"
+
+[pr]
+command = "gh pr create"
+auto_push = true
+
+[worktree]
+# Copy these files to new worktrees
+# copy_patterns = [".env.local", ".vscode/settings.json"]
+
+# Run these commands after creating worktree
+# post_create_cmd = ["npm install"]
+
+[safety]
+confirm_dirty = true
+confirm_unmerged = true
+require_typing_for_unique = true
+
+[ui]
+show_branch_types = true
+show_commits = true
+show_upstream = true
+theme = "auto"
+
+[keys]
+# Vim-style navigation
+up = "up,k"
+down = "down,j"
+home = "home,g"
+end = "end,G"
