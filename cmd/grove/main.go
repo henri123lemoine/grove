@@ -10,6 +10,7 @@ import (
 	"github.com/henrilemoine/grove/internal/app"
 	"github.com/henrilemoine/grove/internal/config"
 	"github.com/henrilemoine/grove/internal/git"
+	"github.com/henrilemoine/grove/internal/ui"
 )
 
 var (
@@ -48,6 +49,9 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Config warning: %s\n", w)
 		}
 	}
+
+	// Initialize theme based on config
+	ui.InitTheme(cfg.UI.Theme)
 
 	// Handle first-run experience
 	if config.IsFirstRun() {
