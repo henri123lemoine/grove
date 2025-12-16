@@ -2,7 +2,6 @@
 
 A terminal UI for managing Git worktrees.
 
-<!-- TODO: Add screenshot -->
 ![grove screenshot](./docs/screenshot.png)
 
 ## Features
