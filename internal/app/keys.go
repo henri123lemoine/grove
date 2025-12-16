@@ -5,6 +5,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/henrilemoine/grove/internal/config"
+	"github.com/henrilemoine/grove/internal/ui"
 )
 
 // KeyMap defines all keybindings.
@@ -227,4 +228,42 @@ func parseKeys(s string) []string {
 		}
 	}
 	return keys
+}
+
+// HelpSections returns the help sections for display, generated from the KeyMap.
+func (km KeyMap) HelpSections() []ui.HelpSection {
+	return []ui.HelpSection{
+		{
+			Title: "Navigation",
+			Bindings: []ui.HelpBinding{
+				{Keys: km.Up.Help().Key, Desc: "Move up"},
+				{Keys: km.Down.Help().Key, Desc: "Move down"},
+				{Keys: km.Home.Help().Key, Desc: "Go to first"},
+				{Keys: km.End.Help().Key, Desc: "Go to last"},
+				{Keys: km.Open.Help().Key, Desc: "Open worktree"},
+			},
+		},
+		{
+			Title: "Actions",
+			Bindings: []ui.HelpBinding{
+				{Keys: km.New.Help().Key, Desc: "New worktree"},
+				{Keys: km.Delete.Help().Key, Desc: "Delete worktree"},
+				{Keys: km.PR.Help().Key, Desc: "Create PR"},
+				{Keys: km.Rename.Help().Key, Desc: "Rename branch"},
+				{Keys: km.Fetch.Help().Key, Desc: "Fetch all remotes"},
+				{Keys: km.Prune.Help().Key, Desc: "Prune stale worktrees"},
+				{Keys: km.Stash.Help().Key, Desc: "Manage stashes"},
+				{Keys: km.Filter.Help().Key, Desc: "Filter worktrees"},
+				{Keys: km.Detail.Help().Key, Desc: "Toggle detail panel"},
+			},
+		},
+		{
+			Title: "General",
+			Bindings: []ui.HelpBinding{
+				{Keys: km.Help.Help().Key, Desc: "Toggle this help"},
+				{Keys: km.Quit.Help().Key, Desc: "Quit"},
+				{Keys: "esc", Desc: "Cancel / Close"},
+			},
+		},
+	}
 }

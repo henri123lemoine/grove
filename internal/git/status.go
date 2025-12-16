@@ -23,29 +23,30 @@ func GetDirtyStatus(worktreePath string) (isDirty bool, count int, err error) {
 }
 
 // GetUpstreamStatus returns how many commits a branch is ahead/behind its upstream.
-func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, err error) {
+// Returns hasUpstream=false if no upstream tracking is configured.
+func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, hasUpstream bool, err error) {
 	// Check if there's an upstream
 	_, err = runGitInDir(worktreePath, "rev-parse", "--abbrev-ref", branch+"@{upstream}")
 	if err != nil {
 		// No upstream configured
-		return 0, 0, nil
+		return 0, 0, false, nil
 	}
 
 	// Get count
 	output, err := runGitInDir(worktreePath, "rev-list", "--left-right", "--count", branch+"@{upstream}..."+branch)
 	if err != nil {
-		return 0, 0, nil
+		return 0, 0, true, nil
 	}
 
 	parts := strings.Fields(strings.TrimSpace(output))
 	if len(parts) != 2 {
-		return 0, 0, nil
+		return 0, 0, true, nil
 	}
 
 	behind, _ = strconv.Atoi(parts[0])
 	ahead, _ = strconv.Atoi(parts[1])
 
-	return ahead, behind, nil
+	return ahead, behind, true, nil
 }
 
 // GetLastCommit returns information about the last commit in a worktree.
