@@ -4,8 +4,10 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 
 	"github.com/henrilemoine/grove/internal/config"
@@ -79,6 +81,7 @@ type Model struct {
 	height     int
 	keys       KeyMap
 	showDetail bool
+	spinner    spinner.Model
 
 	// Exit behavior
 	shouldQuit       bool
@@ -105,6 +108,11 @@ func New(cfg *config.Config, repo *git.Repo) Model {
 	renameInput.Placeholder = "new-branch-name"
 	renameInput.CharLimit = 250 // Git supports up to 255 bytes
 
+	// Initialize spinner with dots style
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
 	return Model{
 		config:      cfg,
 		repo:        repo,
@@ -113,6 +121,7 @@ func New(cfg *config.Config, repo *git.Repo) Model {
 		deleteInput: deleteInput,
 		filterInput: filterInput,
 		renameInput: renameInput,
+		spinner:     s,
 		state:       StateList,
 		loading:     true,
 	}
@@ -123,6 +132,7 @@ func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		loadWorktrees,
 		loadBranchesWithTypes,
+		m.spinner.Tick,
 	)
 }
 
@@ -146,6 +156,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.MouseMsg:
 		return m.handleMouse(msg)
+
+	case spinner.TickMsg:
+		// Update spinner and continue ticking if we're in a loading state
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		if m.isLoading() {
+			return m, cmd
+		}
+		return m, nil
 
 	case WorktreesLoadedMsg:
 		m.loading = false
@@ -792,6 +811,7 @@ func (m Model) View() string {
 		StashWorktree:     m.stashWorktree,
 		StashEntries:      m.stashEntries,
 		StashCursor:       m.stashCursor,
+		SpinnerFrame:      m.spinner.View(),
 	})
 }
 
@@ -808,6 +828,14 @@ func (m Model) OpenAfterQuit() *git.Worktree {
 // SelectedWorktree returns the selected worktree (for --print-selected).
 func (m Model) SelectedWorktree() *git.Worktree {
 	return m.selectedWorktree
+}
+
+// isLoading returns true if the app is in any loading state.
+func (m Model) isLoading() bool {
+	return m.loading ||
+		m.state == StateFetching ||
+		m.state == StatePR ||
+		(m.state == StateDelete && m.safetyInfo == nil)
 }
 
 // Commands

@@ -52,6 +52,7 @@ type RenderParams struct {
 	StashWorktree     *git.Worktree
 	StashEntries      []git.StashEntry
 	StashCursor       int
+	SpinnerFrame      string
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -116,7 +117,7 @@ func renderList(p RenderParams) string {
 
 	// Loading state
 	if p.Loading {
-		b.WriteString("\nLoading...\n")
+		b.WriteString("\n" + p.SpinnerFrame + " Loading worktrees...\n")
 		return wrapInBox(b.String(), p.Width, p.Height)
 	}
 
@@ -409,7 +410,7 @@ func renderDelete(p RenderParams) string {
 	b.WriteString("Path:   " + PathStyle.Render(wt.ShortPath()) + "\n\n")
 
 	if p.SafetyInfo == nil {
-		b.WriteString("Checking safety...\n")
+		b.WriteString(p.SpinnerFrame + " Checking safety...\n")
 		return wrapInBox(b.String(), p.Width, p.Height)
 	}
 
@@ -492,7 +493,7 @@ func renderFetching(p RenderParams) string {
 
 	b.WriteString(HeaderStyle.Render("FETCHING") + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
-	b.WriteString("Fetching updates from all remotes...\n")
+	b.WriteString(p.SpinnerFrame + " Fetching updates from all remotes...\n")
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }
@@ -558,13 +559,13 @@ func renderPR(p RenderParams) string {
 
 	switch p.PRState {
 	case "checking":
-		b.WriteString("Checking gh CLI authentication...\n")
+		b.WriteString(p.SpinnerFrame + " Checking gh CLI authentication...\n")
 	case "pushing":
-		b.WriteString("Pushing branch to remote...\n")
+		b.WriteString(p.SpinnerFrame + " Pushing branch to remote...\n")
 	case "creating":
-		b.WriteString("Creating pull request...\n")
+		b.WriteString(p.SpinnerFrame + " Creating pull request...\n")
 	default:
-		b.WriteString("Preparing...\n")
+		b.WriteString(p.SpinnerFrame + " Preparing...\n")
 	}
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
