@@ -17,3 +17,7 @@ coverage.out
 
 # Temp
 tmp/
+
+# VS Code extension build
+integrations/vscode/out/
+integrations/vscode/node_modules/
