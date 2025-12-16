@@ -9,7 +9,7 @@ Use grove as a popup worktree switcher in tmux.
 Add to your `~/.tmux.conf`:
 
 ```tmux
-set -g @plugin 'henrilemoine/grove'
+set -g @plugin 'henri123lemoine/grove'
 ```
 
 Then press `prefix + I` to install.
@@ -19,7 +19,7 @@ Then press `prefix + I` to install.
 Clone the repo and source the plugin:
 
 ```bash
-git clone https://github.com/henrilemoine/grove ~/.tmux/plugins/grove
+git clone https://github.com/henri123lemoine/grove ~/.tmux/plugins/grove
 ```
 
 Add to `~/.tmux.conf`:

@@ -4,7 +4,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
-	"github.com/henrilemoine/grove/internal/config"
+	"github.com/henri123lemoine/grove/internal/config"
 )
 
 // KeyMap defines all keybindings.
