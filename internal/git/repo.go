@@ -112,14 +112,60 @@ func detectRepo() (*Repo, error) {
 	}, nil
 }
 
+// GetPrimaryRemote returns the primary remote name.
+// If configuredRemote is non-empty, it's used directly.
+// Otherwise, it tries to auto-detect:
+// 1. If there's only one remote, use it
+// 2. If "origin" exists, prefer it
+// 3. Otherwise use the first remote alphabetically
+func GetPrimaryRemote(configuredRemote string) string {
+	if configuredRemote != "" {
+		return configuredRemote
+	}
+
+	// Get list of remotes
+	output, err := runGit("remote")
+	if err != nil {
+		return "origin" // fallback
+	}
+
+	remotes := strings.Fields(strings.TrimSpace(output))
+	if len(remotes) == 0 {
+		return "origin" // fallback for repos with no remotes
+	}
+
+	// If only one remote, use it
+	if len(remotes) == 1 {
+		return remotes[0]
+	}
+
+	// Prefer "origin" if it exists
+	for _, r := range remotes {
+		if r == "origin" {
+			return "origin"
+		}
+	}
+
+	// Otherwise use first one (already sorted alphabetically by git)
+	return remotes[0]
+}
+
 // detectDefaultBranch tries to detect the default branch.
 func detectDefaultBranch() string {
+	return detectDefaultBranchWithRemote("")
+}
+
+// detectDefaultBranchWithRemote tries to detect the default branch using a specific remote.
+func detectDefaultBranchWithRemote(configuredRemote string) string {
+	remote := GetPrimaryRemote(configuredRemote)
+
 	// Try to get from remote HEAD
-	output, err := runGit("symbolic-ref", "refs/remotes/origin/HEAD")
+	output, err := runGit("symbolic-ref", "refs/remotes/"+remote+"/HEAD")
 	if err == nil {
 		ref := strings.TrimSpace(output)
-		if strings.HasPrefix(ref, "refs/remotes/origin/") {
-			return strings.TrimPrefix(ref, "refs/remotes/origin/")
+		prefix := "refs/remotes/" + remote + "/"
+		if strings.HasPrefix(ref, prefix) {
+			return strings.TrimPrefix(ref, prefix)
 		}
 	}
 

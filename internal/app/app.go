@@ -234,7 +234,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.prState = "pushing"
 		wt := m.prWorktree
 		if !git.HasUpstream(wt.Path, wt.Branch) && m.config.PR.AutoPush {
-			return m, pushBranch(wt.Path, wt.Branch)
+			return m, pushBranch(wt.Path, wt.Branch, m.config.General.Remote)
 		}
 		// No push needed, create PR
 		m.prState = "creating"
@@ -763,9 +763,9 @@ func checkGHAuth() tea.Msg {
 	return GHAuthCheckedMsg{Authenticated: authenticated, Err: err}
 }
 
-func pushBranch(worktreePath, branch string) tea.Cmd {
+func pushBranch(worktreePath, branch, remote string) tea.Cmd {
 	return func() tea.Msg {
-		err := git.PushBranch(worktreePath, branch)
+		err := git.PushBranch(worktreePath, branch, remote)
 		return PushCompletedMsg{Err: err}
 	}
 }

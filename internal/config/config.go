@@ -29,6 +29,9 @@ type GeneralConfig struct {
 
 	// Directory for worktrees (relative to repo root, or absolute)
 	WorktreeDir string `toml:"worktree_dir"`
+
+	// Default remote name (empty = auto-detect)
+	Remote string `toml:"remote"`
 }
 
 // OpenConfig contains settings for opening worktrees.

@@ -30,11 +30,13 @@ func HasUpstream(worktreePath, branch string) bool {
 	return err == nil
 }
 
-// PushBranch pushes the branch to origin with upstream tracking.
-func PushBranch(worktreePath, branch string) error {
-	_, err := runGitInDir(worktreePath, "push", "-u", "origin", branch)
+// PushBranch pushes the branch to the specified remote with upstream tracking.
+// If remote is empty, it will auto-detect the primary remote.
+func PushBranch(worktreePath, branch, remote string) error {
+	targetRemote := GetPrimaryRemote(remote)
+	_, err := runGitInDir(worktreePath, "push", "-u", targetRemote, branch)
 	if err != nil {
-		return fmt.Errorf("failed to push branch: %w", err)
+		return fmt.Errorf("failed to push branch to %s: %w", targetRemote, err)
 	}
 	return nil
 }
