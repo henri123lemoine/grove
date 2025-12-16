@@ -34,9 +34,10 @@ lint:
 
 # Run tests
 test:
-	go test -v ./...
+	go test -v -race ./...
 
 # Pre-push check: build + test + lint (run before pushing)
+# This mirrors exactly what CI runs
 check: build test lint
 	@echo "✓ All checks passed"
 
