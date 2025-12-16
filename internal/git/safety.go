@@ -94,8 +94,8 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 
 	// 3. Check for unpushed commits (skip for detached HEAD - no tracking branch)
 	if branch != "" && !isDetached {
-		ahead, _, err := GetUpstreamStatus(worktreePath, branch)
-		if err == nil && ahead > 0 {
+		ahead, _, hasUpstream, err := GetUpstreamStatus(worktreePath, branch)
+		if err == nil && hasUpstream && ahead > 0 {
 			info.HasUnpushedCommits = true
 			info.UnpushedCommitCount = ahead
 			if info.Level < SafetyLevelWarning {
