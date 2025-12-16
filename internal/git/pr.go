@@ -70,22 +70,6 @@ func RenameBranch(worktreePath, oldName, newName string) error {
 	return nil
 }
 
-// GetStashCount returns the number of stashed entries for a worktree.
-func GetStashCount(worktreePath string) (int, error) {
-	output, err := runGitInDir(worktreePath, "stash", "list")
-	if err != nil {
-		return 0, err
-	}
-
-	output = strings.TrimSpace(output)
-	if output == "" {
-		return 0, nil
-	}
-
-	lines := strings.Split(output, "\n")
-	return len(lines), nil
-}
-
 // CreateStash creates a stash in the specified worktree.
 func CreateStash(worktreePath, message string) (string, error) {
 	args := []string{"stash", "push"}
