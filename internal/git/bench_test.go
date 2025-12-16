@@ -28,10 +28,15 @@ func TestListPerformance(t *testing.T) {
 		t.Skip("linuxbench not available")
 	}
 
-	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
+	originalDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+	defer func() { _ = os.Chdir(originalDir) }()
 
-	os.Chdir(linuxbenchPath)
+	if err := os.Chdir(linuxbenchPath); err != nil {
+		t.Fatalf("Failed to change to linuxbench directory: %v", err)
+	}
 
 	start := time.Now()
 	worktrees, err := List()
