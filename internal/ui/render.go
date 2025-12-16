@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/henrilemoine/grove/internal/config"
 	"github.com/henrilemoine/grove/internal/git"
 )
@@ -658,16 +657,4 @@ func compactHelp(full, compact string, width int) string {
 		return full
 	}
 	return compact
-}
-
-// padRight pads a string to the right.
-func padRight(s string, width int) string {
-	visibleLen := lipgloss.Width(s)
-	if visibleLen >= width {
-		if len(s) > width-1 {
-			return s[:width-1] + "…"
-		}
-		return s
-	}
-	return s + strings.Repeat(" ", width-visibleLen)
 }
