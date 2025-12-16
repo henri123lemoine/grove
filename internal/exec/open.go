@@ -12,13 +12,12 @@ import (
 )
 
 // Open executes the open command for a worktree.
-func Open(command string, wt *git.Worktree) error {
+func Open(cfg *config.Config, command string, wt *git.Worktree) error {
 	repo, err := git.GetRepo()
 	if err != nil {
 		return err
 	}
 
-	cfg := config.DefaultConfig()
 	// Expand template variables
 	expanded := expandTemplate(command, wt, repo, cfg)
 
@@ -33,13 +32,12 @@ func Open(command string, wt *git.Worktree) error {
 
 // OpenDetached executes the open command in a detached process.
 // This is useful for commands that should outlive grove.
-func OpenDetached(command string, wt *git.Worktree) error {
+func OpenDetached(cfg *config.Config, command string, wt *git.Worktree) error {
 	repo, err := git.GetRepo()
 	if err != nil {
 		return err
 	}
 
-	cfg := config.DefaultConfig()
 	// Expand template variables
 	expanded := expandTemplate(command, wt, repo, cfg)
 
