@@ -155,7 +155,7 @@ func DefaultConfig() *Config {
 		Open: OpenConfig{
 			// Smart default: detect by path, then create new window
 			Command:         "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}",
-			DetectExisting:  "name",
+			DetectExisting:  "path",
 			ExitAfterOpen:   true,
 			Layout:          "none",
 			LayoutCommand:   "",

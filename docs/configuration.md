@@ -17,13 +17,56 @@ default_base_branch = "main"
 # Directory for worktrees (relative to repo root, or absolute path)
 worktree_dir = ".worktrees"
 
+# Default remote name (empty = auto-detect: single remote > "origin" > first)
+remote = ""
+
 [open]
 # Command to run when opening a worktree
-# Template variables: {path}, {branch}, {branch_short}, {repo}
+# Template variables: {path}, {branch}, {branch_short}, {repo}, {window_name}
 command = "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}"
+
+# How to detect existing windows: "path", "name", or "none"
+# "path" is more reliable (won't confuse feat/auth and fix/auth)
+detect_existing = "path"
 
 # Whether to exit grove after opening a worktree
 exit_after_open = true
+
+# Layout to apply after creating new window: "none", "dev", or "custom"
+# "dev" creates a 70/30 horizontal split (works for tmux and zellij)
+layout = "none"
+
+# Custom layout command (only used if layout = "custom")
+layout_command = ""
+
+# Window name style: "short" (last segment) or "full" (entire branch)
+window_name_style = "short"
+
+# Auto-stash dirty worktree before switching to another
+stash_on_switch = false
+
+[pr]
+# Command to create PR (e.g., "gh pr create" or "glab mr create")
+command = "gh pr create"
+
+# Auto-push branch if no upstream exists
+auto_push = true
+
+[worktree]
+# File patterns to copy to new worktrees (e.g., ".env*", ".vscode/**")
+copy_patterns = []
+
+# File patterns to ignore when copying
+copy_ignores = []
+
+# Commands to run after creating worktree (e.g., ["npm install"])
+post_create_cmd = []
+
+# Timeout for post-create hooks in seconds (0 = no timeout)
+hook_timeout = 300
+
+# Branch-specific templates (see below for examples)
+# [[worktree.templates]]
 
 [safety]
 # Confirm before deleting worktrees with uncommitted changes
@@ -36,6 +79,9 @@ confirm_unmerged = true
 require_typing_for_unique = true
 
 [ui]
+# Show branch type indicators ([worktree], [local], [remote]) in create flow
+show_branch_types = true
+
 # Show last commit info in worktree list
 show_commits = true
 
@@ -44,6 +90,25 @@ show_upstream = true
 
 # Color theme: auto, dark, light
 theme = "auto"
+
+[keys]
+# All keybindings are configurable (comma-separated for multiple keys)
+up = "up,k"
+down = "down,j"
+home = "home,g"
+end = "end,G"
+open = "enter"
+new = "n"
+delete = "d"
+pr = "p"
+rename = "r"
+filter = "/"
+fetch = "f"
+detail = "tab"
+prune = "P"
+stash = "s"
+help = "?"
+quit = "q"
 ```
 
 ## Template Variables
@@ -56,6 +121,7 @@ When configuring the `open.command`, you can use these template variables:
 | `{branch}` | Full branch name | `feature/auth` |
 | `{branch_short}` | Branch name after last `/` | `auth` |
 | `{repo}` | Repository name | `myproject` |
+| `{window_name}` | Generated window name (based on `window_name_style`) | `auth` or `feature/auth` |
 
 ## Example Configurations
 
@@ -166,4 +232,76 @@ Not recommended, but if you want to skip confirmations:
 confirm_dirty = false
 confirm_unmerged = false
 require_typing_for_unique = false
+```
+
+## Worktree Templates
+
+You can define templates that apply different settings based on branch patterns:
+
+```toml
+[worktree]
+# Default settings for all worktrees
+copy_patterns = [".env"]
+post_create_cmd = ["npm install"]
+
+# Feature branches get extra setup
+[[worktree.templates]]
+pattern = "feature/*"
+copy_patterns = [".env", ".env.local"]
+post_create_cmd = ["npm install", "npm run setup"]
+
+# Fix branches are lightweight
+[[worktree.templates]]
+pattern = "fix/*"
+copy_patterns = [".env"]
+post_create_cmd = []
+```
+
+Pattern matching supports:
+- `*` matches any characters except `/`
+- `**` matches any characters including `/`
+- `?` matches a single character
+
+## Layout Presets
+
+The `layout = "dev"` preset creates a split window for development:
+
+```toml
+[open]
+command = "tmux new-window -n {branch_short} -c {path}"
+layout = "dev"  # Creates 70/30 horizontal split
+```
+
+For custom layouts:
+
+```toml
+[open]
+layout = "custom"
+layout_command = "tmux split-window -h -p 30 -c {path}"
+```
+
+## Auto-Stash on Switch
+
+Automatically stash uncommitted changes when switching worktrees:
+
+```toml
+[open]
+stash_on_switch = true
+```
+
+## Custom Keybindings
+
+Change any keybinding (comma-separated for multiple keys):
+
+```toml
+[keys]
+# Vim-style navigation
+up = "k"
+down = "j"
+
+# Alternative delete key
+delete = "x,d"
+
+# Disable a keybinding by setting it to empty
+prune = ""
 ```
