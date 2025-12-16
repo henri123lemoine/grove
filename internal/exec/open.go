@@ -99,15 +99,15 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree) (bool, error) {
 	return isNewWindow, nil
 }
 
-// findWindowByPath finds a tmux window by pane path.
+// findWindowByPath finds a tmux window by checking all panes across all windows.
 func findWindowByPath(path string) string {
 	// Check if we're in tmux
 	if os.Getenv("TMUX") == "" {
 		return ""
 	}
 
-	// List windows with their pane paths
-	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_id} #{pane_current_path}")
+	// List ALL panes across ALL windows
+	cmd := exec.Command("tmux", "list-panes", "-a", "-F", "#{window_id} #{pane_current_path}")
 	output, err := cmd.Output()
 	if err != nil {
 		return ""

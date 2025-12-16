@@ -153,8 +153,7 @@ func DefaultConfig() *Config {
 			WorktreeDir:       ".worktrees",
 		},
 		Open: OpenConfig{
-			// Smart default: detect by path, then create new window
-			Command:         "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}",
+			Command:         "tmux new-window -n {branch_short} -c {path}",
 			DetectExisting:  "path",
 			ExitAfterOpen:   true,
 			Layout:          "none",
