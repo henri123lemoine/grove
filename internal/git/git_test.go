@@ -328,23 +328,28 @@ func TestIsBranchMerged(t *testing.T) {
 func TestGetUniqueCommits(t *testing.T) {
 	ResetRepo()
 
+	repo, err := GetRepo()
+	if err != nil {
+		t.Skip("Could not get repo")
+	}
+
 	currentBranch, err := CurrentBranch()
 	if err != nil {
 		t.Skip("Could not get current branch")
 	}
 
 	// Get unique commits - may or may not have any
-	commits, err := GetUniqueCommits(currentBranch)
+	commits, err := GetUniqueCommits(currentBranch, repo.DefaultBranch)
 	if err != nil {
-		// This can fail if there's no remote, which is okay
-		if strings.Contains(err.Error(), "no upstream") || strings.Contains(err.Error(), "unknown revision") {
-			t.Skip("No upstream configured")
+		// This can fail if there's no default branch ref
+		if strings.Contains(err.Error(), "unknown revision") {
+			t.Skip("Could not compare branches")
 		}
 		t.Logf("GetUniqueCommits: %v", err)
 		return
 	}
 
-	t.Logf("Found %d unique commits on %s", len(commits), currentBranch)
+	t.Logf("Found %d unique commits on %s (vs %s)", len(commits), currentBranch, repo.DefaultBranch)
 	for _, c := range commits {
 		t.Logf("  %s: %s", c.Hash, c.Message)
 	}

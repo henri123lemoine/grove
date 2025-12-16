@@ -71,6 +71,11 @@ var (
 	PathStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted)
 
+	// Commit message style
+	CommitStyle = lipgloss.NewStyle().
+			Foreground(ColorText).
+			Faint(true)
+
 	// Help style
 	HelpStyle = lipgloss.NewStyle().
 			Foreground(ColorMuted)

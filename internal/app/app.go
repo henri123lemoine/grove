@@ -491,9 +491,10 @@ func fetchAll() tea.Msg {
 // Helper functions
 
 func sanitizePath(branch string) string {
-	// Replace / with - for paths
+	// Keep the branch name structure intact (including slashes)
+	// Only sanitize truly problematic characters
 	result := branch
-	for _, c := range []string{"/", "\\", " ", ":"} {
+	for _, c := range []string{"\\", " ", ":"} {
 		result = replaceAll(result, c, "-")
 	}
 	return result

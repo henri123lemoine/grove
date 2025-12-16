@@ -86,8 +86,8 @@ func List() ([]Worktree, error) {
 		}
 
 		// Get unique commits count
-		if wt.Branch != "" {
-			commits, _ := GetUniqueCommits(wt.Branch)
+		if wt.Branch != "" && wt.Branch != repo.DefaultBranch {
+			commits, _ := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
 			wt.UniqueCommits = len(commits)
 		}
 	}

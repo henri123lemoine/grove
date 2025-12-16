@@ -88,9 +88,9 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 	}
 
 	// 4. Check for unique commits (the key safety feature)
-	// These are commits that exist ONLY on this branch and nowhere else
-	if branch != "" {
-		commits, err := GetUniqueCommits(branch)
+	// These are commits that exist ONLY on this branch and not on default
+	if branch != "" && branch != defaultBranch {
+		commits, err := GetUniqueCommits(branch, defaultBranch)
 		if err == nil && len(commits) > 0 {
 			info.HasUniqueCommits = true
 			info.UniqueCommitCount = len(commits)
@@ -103,11 +103,11 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 }
 
 // GetUniqueCommits returns commits that exist only on this branch.
-// These are commits that are not on any remote branch.
-func GetUniqueCommits(branch string) ([]CommitInfo, error) {
-	// git log {branch} --not --remotes --oneline
-	// Shows commits that are on this branch but not on ANY remote
-	output, err := runGit("log", branch, "--not", "--remotes", "--format=%h %s")
+// These are commits not on the default branch (would be lost if branch deleted).
+func GetUniqueCommits(branch, defaultBranch string) ([]CommitInfo, error) {
+	// git log {branch} --not {defaultBranch}
+	// Shows commits on this branch that aren't on the default branch
+	output, err := runGit("log", branch, "--not", defaultBranch, "--format=%h %s")
 	if err != nil {
 		return nil, err
 	}
