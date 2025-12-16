@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/sahilm/fuzzy"
 
 	"github.com/henrilemoine/grove/internal/config"
 	"github.com/henrilemoine/grove/internal/exec"
@@ -23,6 +24,7 @@ const (
 	StateDelete
 	StateFilter
 	StateFetching
+	StateHelp
 )
 
 // Model is the main application model.
@@ -57,9 +59,10 @@ type Model struct {
 	filterInput textinput.Model
 
 	// UI
-	width  int
-	height int
-	keys   KeyMap
+	width      int
+	height     int
+	keys       KeyMap
+	showDetail bool
 
 	// Exit behavior
 	shouldQuit    bool
@@ -205,6 +208,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDeleteKeys(msg)
 	case StateFilter:
 		return m.handleFilterKeys(msg)
+	case StateHelp:
+		return m.handleHelpKeys(msg)
 	}
 	return m, nil
 }
@@ -254,7 +259,20 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Fetch):
 		m.state = StateFetching
 		return m, fetchAll
+	case key.Matches(msg, m.keys.Help):
+		m.state = StateHelp
+		return m, nil
+	case key.Matches(msg, m.keys.Detail):
+		m.showDetail = !m.showDetail
+		return m, nil
 	}
+	return m, nil
+}
+
+// handleHelpKeys handles key presses in the help view.
+func (m Model) handleHelpKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Any key closes help
+	m.state = StateList
 	return m, nil
 }
 
@@ -381,17 +399,30 @@ func (m Model) handleFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// applyFilter filters worktrees based on current filter input.
+// worktreeSource implements fuzzy.Source for worktree fuzzy matching.
+type worktreeSource []git.Worktree
+
+func (w worktreeSource) String(i int) string {
+	// Match against both branch name and path for better results
+	return w[i].Branch + " " + w[i].Path
+}
+
+func (w worktreeSource) Len() int {
+	return len(w)
+}
+
+// applyFilter filters worktrees based on current filter input using fuzzy matching.
 func (m *Model) applyFilter() {
 	filter := m.filterInput.Value()
 	if filter == "" {
 		m.filteredWorktrees = m.worktrees
 	} else {
+		source := worktreeSource(m.worktrees)
+		matches := fuzzy.FindFrom(filter, source)
+
 		m.filteredWorktrees = nil
-		for _, wt := range m.worktrees {
-			if matchesFilter(wt, filter) {
-				m.filteredWorktrees = append(m.filteredWorktrees, wt)
-			}
+		for _, match := range matches {
+			m.filteredWorktrees = append(m.filteredWorktrees, m.worktrees[match.Index])
 		}
 	}
 
@@ -421,6 +452,7 @@ func (m Model) View() string {
 		DeleteWorktree:    m.deleteWorktree,
 		SafetyInfo:        m.safetyInfo,
 		DeleteInput:       m.deleteInput.View(),
+		ShowDetail:        m.showDetail,
 		Branches:          m.branches,
 		BaseBranchIndex:   m.baseBranchIndex,
 		CreateBranch:      m.createBranch,
@@ -519,29 +551,3 @@ func replace(s, old, new string) string {
 	return s
 }
 
-func matchesFilter(wt git.Worktree, filter string) bool {
-	// Simple substring match on branch name and path
-	filter = lower(filter)
-	return contains(lower(wt.Branch), filter) || contains(lower(wt.Path), filter)
-}
-
-func lower(s string) string {
-	result := make([]byte, len(s))
-	for i := 0; i < len(s); i++ {
-		c := s[i]
-		if c >= 'A' && c <= 'Z' {
-			c += 'a' - 'A'
-		}
-		result[i] = c
-	}
-	return string(result)
-}
-
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return len(substr) == 0
-}

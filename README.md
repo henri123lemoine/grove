@@ -7,40 +7,38 @@ A terminal UI for managing Git worktrees.
 
 ## Features
 
-- **See all worktrees** with their status at a glance
-- **Create new worktrees** with branch selection
+- **List worktrees** with status indicators (dirty/clean, ahead/behind, merged)
+- **Create worktrees** from existing or new branches
 - **Delete safely** with smart warnings about uncommitted changes and unique commits
-- **Open anywhere** - configurable action for tmux, zellij, VS Code, or any command
-- **Switch to existing** - reuses tmux windows instead of creating duplicates
+- **Open anywhere** - configurable for tmux, zellij, VS Code, or any command
+- **Fuzzy filter** to quickly find worktrees
+- **Detail panel** for expanded worktree information
 
 ## Installation
 
 ```bash
-# From source
 go install github.com/henrilemoine/grove/cmd/grove@latest
-
-# Or build locally
-git clone https://github.com/henrilemoine/grove
-cd grove
-go build -o grove ./cmd/grove
 ```
 
-## Usage
+## Quick Start
 
 ```bash
+# Run in any git repository
 grove
 ```
 
-### Keybindings
+## Keybindings
 
 | Key | Action |
 |-----|--------|
-| `↑/↓` or `j/k` | Navigate |
-| `Enter` | Open worktree |
+| `↑/k` `↓/j` | Navigate |
+| `enter` | Open worktree |
 | `n` | New worktree |
 | `d` | Delete worktree |
-| `f` | Fetch all |
-| `/` | Filter |
+| `f` | Fetch all remotes |
+| `/` | Filter worktrees |
+| `tab` | Toggle detail panel |
+| `?` | Show help |
 | `q` | Quit |
 
 ## Configuration
@@ -55,49 +53,26 @@ command = "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window 
 exit_after_open = true
 
 [general]
-default_base_branch = "main"
 worktree_dir = ".worktrees"
-
-[safety]
-confirm_dirty = true
-confirm_unmerged = true
-require_typing_for_unique = true
 ```
 
-### Open Command Examples
+See [docs/configuration.md](./docs/configuration.md) for all options and examples.
 
-**tmux (switch or create window):**
-```toml
-command = "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}"
-```
+## tmux Integration
 
-**zellij:**
-```toml
-command = "zellij action new-pane --cwd {path}"
-```
-
-**VS Code:**
-```toml
-command = "code {path}"
-```
-
-## Safety
-
-Grove prevents accidental data loss:
-
-- **Uncommitted changes**: Warns before deleting dirty worktrees
-- **Unmerged branches**: Shows merge status
-- **Unique commits**: Commits that exist ONLY on this branch require typing "delete" to confirm
-
-## Development
+Add to `~/.tmux.conf`:
 
 ```bash
-make build
-make run
-make test
+bind-key w display-popup -E -w 80% -h 80% "grove"
 ```
 
-See [SPEC.md](./SPEC.md) for the full specification.
+See [docs/integrations.md](./docs/integrations.md) for zellij, VS Code, and more.
+
+## Documentation
+
+- [Installation](./docs/installation.md)
+- [Configuration](./docs/configuration.md)
+- [Integrations](./docs/integrations.md)
 
 ## License
 

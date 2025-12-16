@@ -18,6 +18,7 @@ type KeyMap struct {
 	Delete key.Binding
 	Fetch  key.Binding
 	Filter key.Binding
+	Detail key.Binding
 
 	// General
 	Confirm key.Binding
@@ -64,6 +65,10 @@ func DefaultKeyMap() KeyMap {
 		Filter: key.NewBinding(
 			key.WithKeys("/"),
 			key.WithHelp("/", "filter"),
+		),
+		Detail: key.NewBinding(
+			key.WithKeys("tab"),
+			key.WithHelp("tab", "details"),
 		),
 		Confirm: key.NewBinding(
 			key.WithKeys("enter", "y"),

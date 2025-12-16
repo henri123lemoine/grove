@@ -17,6 +17,7 @@ const (
 	StateDelete
 	StateFilter
 	StateFetching
+	StateHelp
 )
 
 // RenderParams contains all parameters needed for rendering.
@@ -38,6 +39,7 @@ type RenderParams struct {
 	Branches          []git.Branch
 	BaseBranchIndex   int
 	CreateBranch      string
+	ShowDetail        bool
 }
 
 // Render renders the full UI.
@@ -60,6 +62,8 @@ func Render(p RenderParams) string {
 		return renderFilter(p)
 	case StateFetching:
 		return renderFetching(p)
+	case StateHelp:
+		return renderHelp(p)
 	default:
 		return renderList(p)
 	}
@@ -98,7 +102,12 @@ func renderList(p RenderParams) string {
 
 	// Worktree list - each entry shows multiple lines of info
 	for i, wt := range p.Worktrees {
-		b.WriteString(renderWorktreeEntry(wt, i == p.Cursor, contentWidth))
+		isSelected := i == p.Cursor
+		b.WriteString(renderWorktreeEntry(wt, isSelected, contentWidth))
+		// Show detail panel for selected item if enabled
+		if isSelected && p.ShowDetail {
+			b.WriteString(renderDetailPanel(wt, contentWidth))
+		}
 		if i < len(p.Worktrees)-1 {
 			b.WriteString("\n")
 		}
@@ -106,7 +115,7 @@ func renderList(p RenderParams) string {
 
 	// Footer
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
-	b.WriteString(HelpStyle.Render("enter open • n new • d delete • f fetch • / filter • q quit"))
+	b.WriteString(HelpStyle.Render("enter open • n new • d delete • f fetch • / filter • tab detail • ? help • q quit"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }
@@ -191,6 +200,71 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// renderDetailPanel renders the expanded detail panel for a worktree.
+func renderDetailPanel(wt git.Worktree, width int) string {
+	var b strings.Builder
+	indent := "      "
+
+	b.WriteString("\n")
+	b.WriteString(indent + DividerStyle.Render("┌"+strings.Repeat("─", 50)+"┐") + "\n")
+
+	// Full path
+	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Path:     ") + wt.Path)
+	b.WriteString(strings.Repeat(" ", max(0, 49-len(wt.Path)-10)) + DividerStyle.Render("│") + "\n")
+
+	// Branch
+	branchLine := fmt.Sprintf("Branch:   %s", wt.Branch)
+	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Branch:   ") + wt.Branch)
+	b.WriteString(strings.Repeat(" ", max(0, 49-len(branchLine))) + DividerStyle.Render("│") + "\n")
+
+	// Status
+	statusStr := "clean"
+	if wt.IsDirty {
+		statusStr = fmt.Sprintf("%d uncommitted files", wt.DirtyFiles)
+	}
+	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Status:   ") + statusStr)
+	b.WriteString(strings.Repeat(" ", max(0, 49-len(statusStr)-10)) + DividerStyle.Render("│") + "\n")
+
+	// Upstream
+	upstreamStr := "no upstream"
+	if wt.Ahead > 0 || wt.Behind > 0 {
+		upstreamStr = fmt.Sprintf("↑%d ahead, ↓%d behind", wt.Ahead, wt.Behind)
+	} else if wt.Ahead == 0 && wt.Behind == 0 {
+		upstreamStr = "up to date"
+	}
+	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Upstream: ") + upstreamStr)
+	b.WriteString(strings.Repeat(" ", max(0, 49-len(upstreamStr)-10)) + DividerStyle.Render("│") + "\n")
+
+	// Merged status
+	mergedStr := "no"
+	if wt.IsMerged {
+		mergedStr = "yes"
+	}
+	if wt.IsMain {
+		mergedStr = "main worktree"
+	}
+	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Merged:   ") + mergedStr)
+	b.WriteString(strings.Repeat(" ", max(0, 49-len(mergedStr)-10)) + DividerStyle.Render("│") + "\n")
+
+	// Unique commits
+	if wt.UniqueCommits > 0 {
+		uniqueStr := fmt.Sprintf("%d commits only on this branch", wt.UniqueCommits)
+		b.WriteString(indent + DividerStyle.Render("│") + " " + DangerStyle.Render("Unique:   ") + DangerStyle.Render(uniqueStr))
+		b.WriteString(strings.Repeat(" ", max(0, 49-len(uniqueStr)-10)) + DividerStyle.Render("│") + "\n")
+	}
+
+	b.WriteString(indent + DividerStyle.Render("└"+strings.Repeat("─", 50)+"┘"))
+
+	return b.String()
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // renderCreate renders the create worktree flow.
@@ -344,6 +418,47 @@ func renderFetching(p RenderParams) string {
 	b.WriteString(HeaderStyle.Render("FETCHING") + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
 	b.WriteString("Fetching updates from all remotes...\n")
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderHelp renders the help screen.
+func renderHelp(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("HELP") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	// Navigation section
+	b.WriteString(BranchStyle.Render("Navigation") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", 40)) + "\n")
+	b.WriteString(PathStyle.Render("  ↑/k      ") + "Move up\n")
+	b.WriteString(PathStyle.Render("  ↓/j      ") + "Move down\n")
+	b.WriteString(PathStyle.Render("  g/Home   ") + "Go to first\n")
+	b.WriteString(PathStyle.Render("  G/End    ") + "Go to last\n")
+	b.WriteString(PathStyle.Render("  enter    ") + "Open worktree\n")
+	b.WriteString("\n")
+
+	// Actions section
+	b.WriteString(BranchStyle.Render("Actions") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", 40)) + "\n")
+	b.WriteString(PathStyle.Render("  n        ") + "New worktree\n")
+	b.WriteString(PathStyle.Render("  d        ") + "Delete worktree\n")
+	b.WriteString(PathStyle.Render("  f        ") + "Fetch all remotes\n")
+	b.WriteString(PathStyle.Render("  /        ") + "Filter worktrees\n")
+	b.WriteString(PathStyle.Render("  tab      ") + "Toggle detail panel\n")
+	b.WriteString("\n")
+
+	// General section
+	b.WriteString(BranchStyle.Render("General") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", 40)) + "\n")
+	b.WriteString(PathStyle.Render("  ?        ") + "Toggle this help\n")
+	b.WriteString(PathStyle.Render("  q        ") + "Quit\n")
+	b.WriteString(PathStyle.Render("  esc      ") + "Cancel / Close\n")
+
+	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
+	b.WriteString(HelpStyle.Render("Press any key to close"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }
