@@ -79,6 +79,9 @@ type WorktreeConfig struct {
 	// Commands to run after creating worktree
 	PostCreateCmd []string `toml:"post_create_cmd"`
 
+	// Timeout for post-create hooks in seconds (0 = no timeout)
+	HookTimeout int `toml:"hook_timeout"`
+
 	// Templates for different branch patterns
 	Templates []TemplateConfig `toml:"templates"`
 }
@@ -165,6 +168,7 @@ func DefaultConfig() *Config {
 			CopyPatterns:  []string{},
 			CopyIgnores:   []string{},
 			PostCreateCmd: []string{},
+			HookTimeout:   300, // 5 minutes default
 			Templates:     []TemplateConfig{},
 		},
 		Safety: SafetyConfig{

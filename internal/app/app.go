@@ -815,7 +815,7 @@ func runPostCreateOperations(cfg *config.Config, path, branch string) tea.Cmd {
 
 		// Run post-create commands
 		if len(postCreateCmd) > 0 {
-			err := git.RunPostCreateHooks(path, postCreateCmd)
+			err := git.RunPostCreateHooks(path, postCreateCmd, cfg.Worktree.HookTimeout)
 			if err != nil {
 				return PostCreateHooksCompletedMsg{Err: err}
 			}

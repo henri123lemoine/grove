@@ -343,21 +343,44 @@ func copyDir(src, dst string, ignores []string) error {
 // RunPostCreateHooks runs post-create commands in the worktree directory.
 // Note: Commands run without stdin access since grove is a TUI application.
 // Use non-interactive commands (e.g., "npm install --yes" instead of "npm install").
-func RunPostCreateHooks(worktreePath string, commands []string) error {
+// timeoutSeconds of 0 means no timeout.
+func RunPostCreateHooks(worktreePath string, commands []string, timeoutSeconds int) error {
 	for _, cmdStr := range commands {
-		cmd := exec.Command("sh", "-c", cmdStr)
-		cmd.Dir = worktreePath
-
-		// Capture output for better error messages
-		// stdin is nil - interactive commands won't work
-		output, err := cmd.CombinedOutput()
-		if err != nil {
-			outputStr := strings.TrimSpace(string(output))
-			if outputStr != "" {
-				return fmt.Errorf("post-create command failed: %s: %w\nOutput: %s", cmdStr, err, outputStr)
-			}
-			return fmt.Errorf("post-create command failed: %s: %w", cmdStr, err)
+		if err := runHookCommand(worktreePath, cmdStr, timeoutSeconds); err != nil {
+			return err
 		}
+	}
+	return nil
+}
+
+// runHookCommand runs a single hook command with optional timeout.
+func runHookCommand(worktreePath, cmdStr string, timeoutSeconds int) error {
+	var cmd *exec.Cmd
+
+	if timeoutSeconds > 0 {
+		// Use timeout command for cross-platform support
+		cmd = exec.Command("sh", "-c", fmt.Sprintf("timeout %d %s", timeoutSeconds, cmdStr))
+	} else {
+		cmd = exec.Command("sh", "-c", cmdStr)
+	}
+
+	cmd.Dir = worktreePath
+
+	// Capture output for better error messages
+	// stdin is nil - interactive commands won't work
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		outputStr := strings.TrimSpace(string(output))
+
+		// Check if it was a timeout
+		if exitErr, ok := err.(*exec.ExitError); ok && exitErr.ExitCode() == 124 {
+			return fmt.Errorf("post-create command timed out after %ds: %s", timeoutSeconds, cmdStr)
+		}
+
+		if outputStr != "" {
+			return fmt.Errorf("post-create command failed: %s: %w\nOutput: %s", cmdStr, err, outputStr)
+		}
+		return fmt.Errorf("post-create command failed: %s: %w", cmdStr, err)
 	}
 	return nil
 }
