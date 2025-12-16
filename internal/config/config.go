@@ -233,9 +233,13 @@ func DetectEnvironment() string {
 
 // Load loads configuration from the config file.
 func Load() (*Config, error) {
+	return LoadFromPath(ConfigPath())
+}
+
+// LoadFromPath loads configuration from a specific path.
+func LoadFromPath(path string) (*Config, error) {
 	cfg := DefaultConfig()
 
-	path := ConfigPath()
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -245,14 +249,12 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	// Parse TOML
-	var fileCfg Config
-	if err := toml.Unmarshal(data, &fileCfg); err != nil {
+	// Unmarshal directly into default config.
+	// go-toml/v2 only overwrites fields present in the TOML file,
+	// preserving defaults for unspecified fields (including booleans).
+	if err := toml.Unmarshal(data, cfg); err != nil {
 		return nil, err
 	}
-
-	// Merge with defaults (file config takes precedence)
-	mergeConfig(cfg, &fileCfg)
 
 	return cfg, nil
 }
@@ -465,115 +467,6 @@ func (c *Config) Validate() []string {
 func extractTemplateVars(s string) []string {
 	re := regexp.MustCompile(`\{[^}]+\}`)
 	return re.FindAllString(s, -1)
-}
-
-// mergeConfig merges the file config into the base config.
-// Non-zero values in file config override base config.
-func mergeConfig(base, file *Config) {
-	// General
-	if file.General.DefaultBaseBranch != "" {
-		base.General.DefaultBaseBranch = file.General.DefaultBaseBranch
-	}
-	if file.General.WorktreeDir != "" {
-		base.General.WorktreeDir = file.General.WorktreeDir
-	}
-
-	// Open
-	if file.Open.Command != "" {
-		base.Open.Command = file.Open.Command
-	}
-	if file.Open.DetectExisting != "" {
-		base.Open.DetectExisting = file.Open.DetectExisting
-	}
-	// ExitAfterOpen is a bool, always use file value
-	base.Open.ExitAfterOpen = file.Open.ExitAfterOpen
-	if file.Open.Layout != "" {
-		base.Open.Layout = file.Open.Layout
-	}
-	if file.Open.LayoutCommand != "" {
-		base.Open.LayoutCommand = file.Open.LayoutCommand
-	}
-	if file.Open.WindowNameStyle != "" {
-		base.Open.WindowNameStyle = file.Open.WindowNameStyle
-	}
-	base.Open.StashOnSwitch = file.Open.StashOnSwitch
-
-	// PR
-	if file.PR.Command != "" {
-		base.PR.Command = file.PR.Command
-	}
-	base.PR.AutoPush = file.PR.AutoPush
-
-	// Worktree
-	if len(file.Worktree.CopyPatterns) > 0 {
-		base.Worktree.CopyPatterns = file.Worktree.CopyPatterns
-	}
-	if len(file.Worktree.CopyIgnores) > 0 {
-		base.Worktree.CopyIgnores = file.Worktree.CopyIgnores
-	}
-	if len(file.Worktree.PostCreateCmd) > 0 {
-		base.Worktree.PostCreateCmd = file.Worktree.PostCreateCmd
-	}
-	if len(file.Worktree.Templates) > 0 {
-		base.Worktree.Templates = file.Worktree.Templates
-	}
-
-	// Safety
-	base.Safety.ConfirmDirty = file.Safety.ConfirmDirty
-	base.Safety.ConfirmUnmerged = file.Safety.ConfirmUnmerged
-	base.Safety.RequireTypingForUnique = file.Safety.RequireTypingForUnique
-
-	// UI
-	base.UI.ShowBranchTypes = file.UI.ShowBranchTypes
-	base.UI.ShowCommits = file.UI.ShowCommits
-	base.UI.ShowUpstream = file.UI.ShowUpstream
-	if file.UI.Theme != "" {
-		base.UI.Theme = file.UI.Theme
-	}
-
-	// Keys
-	if file.Keys.Up != "" {
-		base.Keys.Up = file.Keys.Up
-	}
-	if file.Keys.Down != "" {
-		base.Keys.Down = file.Keys.Down
-	}
-	if file.Keys.Home != "" {
-		base.Keys.Home = file.Keys.Home
-	}
-	if file.Keys.End != "" {
-		base.Keys.End = file.Keys.End
-	}
-	if file.Keys.Open != "" {
-		base.Keys.Open = file.Keys.Open
-	}
-	if file.Keys.New != "" {
-		base.Keys.New = file.Keys.New
-	}
-	if file.Keys.Delete != "" {
-		base.Keys.Delete = file.Keys.Delete
-	}
-	if file.Keys.PR != "" {
-		base.Keys.PR = file.Keys.PR
-	}
-	if file.Keys.Rename != "" {
-		base.Keys.Rename = file.Keys.Rename
-	}
-	if file.Keys.Filter != "" {
-		base.Keys.Filter = file.Keys.Filter
-	}
-	if file.Keys.Fetch != "" {
-		base.Keys.Fetch = file.Keys.Fetch
-	}
-	if file.Keys.Detail != "" {
-		base.Keys.Detail = file.Keys.Detail
-	}
-	if file.Keys.Help != "" {
-		base.Keys.Help = file.Keys.Help
-	}
-	if file.Keys.Quit != "" {
-		base.Keys.Quit = file.Keys.Quit
-	}
 }
 
 // GetTemplateForBranch returns the template that matches the branch name.
