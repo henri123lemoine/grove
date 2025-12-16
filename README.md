@@ -2,49 +2,33 @@
 
 A terminal UI for managing Git worktrees.
 
-```
-┌─ grove ─────────────────────────────────────────── ~/myproject ─┐
-│                                                                  │
-│  WORKTREES                                                       │
-│  ────────────────────────────────────────────────────────────── │
-│                                                                  │
-│  › main              .               ✓ clean                    │
-│    feat/auth         .worktrees/auth ✗ 3 modified   ↑2 ahead   │
-│    feat/dashboard    .worktrees/dash ✓ clean        ✓ merged    │
-│    fix/login         .worktrees/log  ⚠ 2 unique                 │
-│                                                                  │
-│  ────────────────────────────────────────────────────────────── │
-│  [enter] open  [n]ew  [d]elete  [f]etch  [/]filter  [q]uit     │
-└──────────────────────────────────────────────────────────────────┘
-```
+<!-- TODO: Add screenshot -->
+![grove screenshot](./docs/screenshot.png)
 
-## Why grove?
-
-Git worktrees are powerful but underused. Managing them with raw `git worktree` commands is tedious. Grove makes it easy:
+## Features
 
 - **See all worktrees** with their status at a glance
-- **Create new worktrees** with branch selection and fuzzy search
-- **Delete safely** with smart warnings about uncommitted changes and unmerged commits
+- **Create new worktrees** with branch selection
+- **Delete safely** with smart warnings about uncommitted changes and unique commits
 - **Open anywhere** - configurable action for tmux, zellij, VS Code, or any command
+- **Switch to existing** - reuses tmux windows instead of creating duplicates
 
 ## Installation
 
 ```bash
-# Homebrew (coming soon)
-brew install grove
-
 # From source
-go install github.com/henrilemoine/grove@latest
+go install github.com/henrilemoine/grove/cmd/grove@latest
+
+# Or build locally
+git clone https://github.com/henrilemoine/grove
+cd grove
+go build -o grove ./cmd/grove
 ```
 
 ## Usage
 
 ```bash
-# Open the TUI in current repo
 grove
-
-# Or in a specific directory
-grove /path/to/repo
 ```
 
 ### Keybindings
@@ -53,22 +37,22 @@ grove /path/to/repo
 |-----|--------|
 | `↑/↓` or `j/k` | Navigate |
 | `Enter` | Open worktree |
-| `n` | Create new worktree |
+| `n` | New worktree |
 | `d` | Delete worktree |
 | `f` | Fetch all |
-| `/` | Filter/search |
-| `?` | Help |
+| `/` | Filter |
 | `q` | Quit |
 
 ## Configuration
 
-Grove looks for config at `~/.config/grove/config.toml`:
+Config location: `~/.config/grove/config.toml`
 
 ```toml
 [open]
 # Command to run when opening a worktree
 # Variables: {path}, {branch}, {branch_short}, {repo}
-command = "tmux new-window -n {branch_short} -c {path}"
+command = "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}"
+exit_after_open = true
 
 [general]
 default_base_branch = "main"
@@ -80,60 +64,40 @@ confirm_unmerged = true
 require_typing_for_unique = true
 ```
 
-### Example Configurations
+### Open Command Examples
 
-**tmux (new window):**
+**tmux (switch or create window):**
 ```toml
-[open]
-command = "tmux new-window -n {branch_short} -c {path}"
-```
-
-**tmux (new session):**
-```toml
-[open]
-command = "tmux new-session -d -s {branch_short} -c {path} && tmux switch -t {branch_short}"
+command = "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}"
 ```
 
 **zellij:**
 ```toml
-[open]
 command = "zellij action new-pane --cwd {path}"
 ```
 
 **VS Code:**
 ```toml
-[open]
 command = "code {path}"
 ```
 
-## Safety Features
+## Safety
 
 Grove prevents accidental data loss:
 
 - **Uncommitted changes**: Warns before deleting dirty worktrees
-- **Unmerged branches**: Shows merge status before deletion
-- **Unique commits**: Detects commits that exist ONLY on this branch and requires typing "delete" to confirm
-
-## Integration with tmux-worktree
-
-If you use the [tmux-worktree](https://github.com/henrilemoine/tmux-worktree) plugin, grove can be launched from a keybinding:
-
-```bash
-# In your tmux.conf or via the plugin
-bind-key w display-popup -E -w 80% -h 80% "grove"
-```
+- **Unmerged branches**: Shows merge status
+- **Unique commits**: Commits that exist ONLY on this branch require typing "delete" to confirm
 
 ## Development
 
-See [SPEC.md](./SPEC.md) for the full specification and research notes.
-
 ```bash
-# Build
-go build -o grove ./cmd/grove
-
-# Run
-./grove
+make build
+make run
+make test
 ```
+
+See [SPEC.md](./SPEC.md) for the full specification.
 
 ## License
 

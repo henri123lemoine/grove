@@ -1,0 +1,167 @@
+// Package git provides Git operations for worktree management.
+package git
+
+import (
+	"bytes"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+)
+
+// Repo holds repository information.
+type Repo struct {
+	// Root is the current worktree root directory.
+	Root string
+
+	// MainWorktreeRoot is the main worktree root (where .worktrees should be created).
+	// For bare repos, this is the git directory itself.
+	MainWorktreeRoot string
+
+	// GitDir is the path to the .git directory (the common git dir).
+	GitDir string
+
+	// IsBare indicates if this is a bare repository.
+	IsBare bool
+
+	// DefaultBranch is the default branch (main, master, etc).
+	DefaultBranch string
+}
+
+// currentRepo caches the current repository info.
+var currentRepo *Repo
+
+// GetRepo returns the current repository information.
+// It caches the result for subsequent calls.
+func GetRepo() (*Repo, error) {
+	if currentRepo != nil {
+		return currentRepo, nil
+	}
+
+	repo, err := detectRepo()
+	if err != nil {
+		return nil, err
+	}
+	currentRepo = repo
+	return repo, nil
+}
+
+// ResetRepo clears the cached repository info.
+func ResetRepo() {
+	currentRepo = nil
+}
+
+// detectRepo detects the current Git repository.
+func detectRepo() (*Repo, error) {
+	// Get the git common directory (the actual .git dir, not worktree's .git file)
+	gitDir, err := runGit("rev-parse", "--git-common-dir")
+	if err != nil {
+		return nil, fmt.Errorf("not a git repository: %w", err)
+	}
+	gitDir = strings.TrimSpace(gitDir)
+
+	// Make gitDir absolute
+	if !filepath.IsAbs(gitDir) {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+		gitDir = filepath.Join(cwd, gitDir)
+	}
+	gitDir = filepath.Clean(gitDir)
+
+	// Check if bare repo
+	isBareStr, err := runGit("rev-parse", "--is-bare-repository")
+	if err != nil {
+		return nil, err
+	}
+	isBare := strings.TrimSpace(isBareStr) == "true"
+
+	// Get current worktree root
+	var root string
+	if isBare {
+		root = gitDir
+	} else {
+		root, err = runGit("rev-parse", "--show-toplevel")
+		if err != nil {
+			return nil, err
+		}
+		root = strings.TrimSpace(root)
+	}
+
+	// Get main worktree root (where .worktrees should be created)
+	var mainRoot string
+	if isBare {
+		mainRoot = gitDir
+	} else {
+		// For normal repos, the main worktree is the parent of the .git directory
+		// For worktrees, gitDir points to the common .git dir
+		mainRoot = filepath.Dir(gitDir)
+	}
+
+	// Get default branch
+	defaultBranch := detectDefaultBranch()
+
+	return &Repo{
+		Root:             root,
+		MainWorktreeRoot: mainRoot,
+		GitDir:           gitDir,
+		IsBare:           isBare,
+		DefaultBranch:    defaultBranch,
+	}, nil
+}
+
+// detectDefaultBranch tries to detect the default branch.
+func detectDefaultBranch() string {
+	// Try to get from remote HEAD
+	output, err := runGit("symbolic-ref", "refs/remotes/origin/HEAD")
+	if err == nil {
+		ref := strings.TrimSpace(output)
+		if strings.HasPrefix(ref, "refs/remotes/origin/") {
+			return strings.TrimPrefix(ref, "refs/remotes/origin/")
+		}
+	}
+
+	// Try common defaults
+	for _, branch := range []string{"main", "master"} {
+		_, err := runGit("rev-parse", "--verify", "refs/heads/"+branch)
+		if err == nil {
+			return branch
+		}
+	}
+
+	// Fallback
+	return "main"
+}
+
+// runGit executes a git command and returns the output.
+func runGit(args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
+// runGitInDir executes a git command in a specific directory.
+func runGitInDir(dir string, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderr.String())
+	}
+
+	return stdout.String(), nil
+}

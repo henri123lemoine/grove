@@ -4,6 +4,8 @@ package config
 import (
 	"os"
 	"path/filepath"
+
+	"github.com/pelletier/go-toml/v2"
 )
 
 // Config represents grove configuration.
@@ -65,7 +67,8 @@ func DefaultConfig() *Config {
 			WorktreeDir:       ".worktrees",
 		},
 		Open: OpenConfig{
-			Command:       "echo {path}",
+			// Try to switch to existing window, otherwise create new one
+			Command:       "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}",
 			ExitAfterOpen: true,
 		},
 		Safety: SafetyConfig{
@@ -92,15 +95,77 @@ func ConfigPath() string {
 
 // Load loads configuration from the config file.
 func Load() (*Config, error) {
-	// TODO: Implement
-	// 1. Check if config file exists
-	// 2. Parse TOML
-	// 3. Merge with defaults
-	return DefaultConfig(), nil
+	cfg := DefaultConfig()
+
+	path := ConfigPath()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			// No config file, use defaults
+			return cfg, nil
+		}
+		return nil, err
+	}
+
+	// Parse TOML
+	var fileCfg Config
+	if err := toml.Unmarshal(data, &fileCfg); err != nil {
+		return nil, err
+	}
+
+	// Merge with defaults (file config takes precedence)
+	mergeConfig(cfg, &fileCfg)
+
+	return cfg, nil
 }
 
 // Save saves configuration to the config file.
 func Save(cfg *Config) error {
-	// TODO: Implement
-	return nil
+	path := ConfigPath()
+
+	// Ensure directory exists
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return err
+	}
+
+	data, err := toml.Marshal(cfg)
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(path, data, 0644)
+}
+
+// mergeConfig merges the file config into the base config.
+// Non-zero values in file config override base config.
+func mergeConfig(base, file *Config) {
+	// General
+	if file.General.DefaultBaseBranch != "" {
+		base.General.DefaultBaseBranch = file.General.DefaultBaseBranch
+	}
+	if file.General.WorktreeDir != "" {
+		base.General.WorktreeDir = file.General.WorktreeDir
+	}
+
+	// Open
+	if file.Open.Command != "" {
+		base.Open.Command = file.Open.Command
+	}
+	// ExitAfterOpen is a bool, so we always use file value if it's set
+	// Since we can't distinguish between "not set" and "false" in TOML,
+	// we just use the file value
+	base.Open.ExitAfterOpen = file.Open.ExitAfterOpen
+
+	// Safety - same issue with bools, use file values
+	base.Safety.ConfirmDirty = file.Safety.ConfirmDirty
+	base.Safety.ConfirmUnmerged = file.Safety.ConfirmUnmerged
+	base.Safety.RequireTypingForUnique = file.Safety.RequireTypingForUnique
+
+	// UI
+	base.UI.ShowCommits = file.UI.ShowCommits
+	base.UI.ShowUpstream = file.UI.ShowUpstream
+	if file.UI.Theme != "" {
+		base.UI.Theme = file.UI.Theme
+	}
 }
