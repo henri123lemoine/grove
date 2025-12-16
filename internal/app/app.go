@@ -10,10 +10,10 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/sahilm/fuzzy"
 
-	"github.com/henrilemoine/grove/internal/config"
-	"github.com/henrilemoine/grove/internal/exec"
-	"github.com/henrilemoine/grove/internal/git"
-	"github.com/henrilemoine/grove/internal/ui"
+	"github.com/henri123lemoine/grove/internal/config"
+	"github.com/henri123lemoine/grove/internal/exec"
+	"github.com/henri123lemoine/grove/internal/git"
+	"github.com/henri123lemoine/grove/internal/ui"
 )
 
 // State represents the current UI state.

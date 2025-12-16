@@ -2,7 +2,7 @@
 package app
 
 import (
-	"github.com/henrilemoine/grove/internal/git"
+	"github.com/henri123lemoine/grove/internal/git"
 )
 
 // Message types for the bubbletea app.

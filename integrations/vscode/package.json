@@ -3,10 +3,10 @@
   "displayName": "Grove - Git Worktrees",
   "description": "Manage Git worktrees with ease",
   "version": "0.1.0",
-  "publisher": "henrilemoine",
+  "publisher": "henri123lemoine",
   "repository": {
     "type": "git",
-    "url": "https://github.com/henrilemoine/grove"
+    "url": "https://github.com/henri123lemoine/grove"
   },
   "engines": {
     "vscode": "^1.80.0"

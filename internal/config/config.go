@@ -296,7 +296,7 @@ func generateDefaultConfigContent(env string) string {
 	var b strings.Builder
 
 	b.WriteString("# Grove Configuration\n")
-	b.WriteString("# See https://github.com/henrilemoine/grove for documentation\n\n")
+	b.WriteString("# See https://github.com/henri123lemoine/grove for documentation\n\n")
 
 	b.WriteString("[general]\n")
 	b.WriteString("# Default base branch for new worktrees\n")

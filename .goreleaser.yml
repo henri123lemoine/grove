@@ -62,11 +62,11 @@ changelog:
 brews:
   - name: grove
     repository:
-      owner: henrilemoine
+      owner: henri123lemoine
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     folder: Formula
-    homepage: "https://github.com/henrilemoine/grove"
+    homepage: "https://github.com/henri123lemoine/grove"
     description: "Terminal UI for Git worktrees"
     license: "MIT"
     test: |
@@ -77,8 +77,8 @@ brews:
 nfpms:
   - id: packages
     package_name: grove
-    vendor: henrilemoine
-    homepage: "https://github.com/henrilemoine/grove"
+    vendor: henri123lemoine
+    homepage: "https://github.com/henri123lemoine/grove"
     description: "Terminal UI for Git worktrees"
     license: MIT
     formats:
