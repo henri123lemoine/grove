@@ -1,6 +1,8 @@
 package app
 
 import (
+	"fmt"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -142,6 +144,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.safetyInfo = msg.Info
+		// Focus delete input if danger level
+		if msg.Info.Level == git.SafetyLevelDanger {
+			m.deleteInput.Focus()
+			return m, textinput.Blink
+		}
 		return m, nil
 
 	case WorktreeCreatedMsg:
@@ -233,7 +240,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
 			if wt.IsMain {
-				m.err = nil // Can't delete main worktree
+				m.err = fmt.Errorf("cannot delete main worktree")
 				return m, nil
 			}
 			m.deleteWorktree = wt
