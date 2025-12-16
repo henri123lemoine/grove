@@ -1,4 +1,4 @@
-.PHONY: build run clean install
+.PHONY: build run clean install test lint fmt check setup-hooks
 
 # Build the binary
 build:
@@ -28,10 +28,22 @@ deps:
 fmt:
 	go fmt ./...
 
-# Run linter
+# Run linter (install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
 lint:
 	golangci-lint run
 
 # Run tests
 test:
 	go test -v ./...
+
+# Pre-push check: build + test + lint (run before pushing)
+check: build test lint
+	@echo "✓ All checks passed"
+
+# Setup git hooks for pre-push validation
+setup-hooks:
+	@echo '#!/bin/sh' > .git/hooks/pre-push
+	@echo 'echo "Running pre-push checks..."' >> .git/hooks/pre-push
+	@echo 'make check || exit 1' >> .git/hooks/pre-push
+	@chmod +x .git/hooks/pre-push
+	@echo "✓ Pre-push hook installed"
