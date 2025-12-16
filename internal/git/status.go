@@ -50,18 +50,28 @@ func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, err erro
 
 // GetLastCommit returns information about the last commit in a worktree.
 func GetLastCommit(worktreePath string) (hash, message, relTime string, err error) {
-	// Format: short hash, subject, relative time
-	output, err := runGitInDir(worktreePath, "log", "-1", "--format=%h\x00%s\x00%cr")
+	// Get hash
+	hashOut, err := runGitInDir(worktreePath, "log", "-1", "--format=%h")
 	if err != nil {
 		return "", "", "", err
 	}
+	hash = strings.TrimSpace(hashOut)
 
-	parts := strings.Split(strings.TrimSpace(output), "\x00")
-	if len(parts) != 3 {
-		return "", "", "", nil
+	// Get subject
+	msgOut, err := runGitInDir(worktreePath, "log", "-1", "--format=%s")
+	if err != nil {
+		return hash, "", "", nil
 	}
+	message = strings.TrimSpace(msgOut)
 
-	return parts[0], parts[1], parts[2], nil
+	// Get relative time
+	timeOut, err := runGitInDir(worktreePath, "log", "-1", "--format=%cr")
+	if err != nil {
+		return hash, message, "", nil
+	}
+	relTime = strings.TrimSpace(timeOut)
+
+	return hash, message, relTime, nil
 }
 
 // FetchAll fetches updates for all remotes.

@@ -179,8 +179,8 @@ func (w *Worktree) ShortPath() string {
 		return w.Path
 	}
 
-	// Try to make it relative to repo root
-	relPath, err := filepath.Rel(repo.Root, w.Path)
+	// Try to make it relative to main worktree root
+	relPath, err := filepath.Rel(repo.MainWorktreeRoot, w.Path)
 	if err != nil {
 		return w.Path
 	}

@@ -13,7 +13,8 @@ type Branch struct {
 
 // ListBranches returns all local branches.
 func ListBranches() ([]Branch, error) {
-	output, err := runGit("branch", "--format=%(refname:short)\x00%(HEAD)")
+	// Use --list to get branches with current indicator
+	output, err := runGit("branch", "--list", "--format=%(HEAD)%(refname:short)")
 	if err != nil {
 		return nil, err
 	}
@@ -23,14 +24,13 @@ func ListBranches() ([]Branch, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.Split(line, "\x00")
-		if len(parts) != 2 {
-			continue
-		}
+		isCurrent := strings.HasPrefix(line, "*")
+		name := strings.TrimPrefix(line, "*")
+		name = strings.TrimPrefix(name, " ")
 		branches = append(branches, Branch{
-			Name:      parts[0],
+			Name:      name,
 			IsRemote:  false,
-			IsCurrent: parts[1] == "*",
+			IsCurrent: isCurrent,
 		})
 	}
 

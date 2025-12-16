@@ -107,7 +107,7 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 func GetUniqueCommits(branch string) ([]CommitInfo, error) {
 	// git log {branch} --not --remotes --oneline
 	// Shows commits that are on this branch but not on ANY remote
-	output, err := runGit("log", branch, "--not", "--remotes", "--oneline", "--format=%h\x00%s")
+	output, err := runGit("log", branch, "--not", "--remotes", "--format=%h %s")
 	if err != nil {
 		return nil, err
 	}
@@ -122,11 +122,16 @@ func GetUniqueCommits(branch string) ([]CommitInfo, error) {
 		if line == "" {
 			continue
 		}
-		parts := strings.SplitN(line, "\x00", 2)
-		if len(parts) == 2 {
+		// Split on first space: hash message
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) >= 1 {
+			msg := ""
+			if len(parts) == 2 {
+				msg = parts[1]
+			}
 			commits = append(commits, CommitInfo{
 				Hash:    parts[0],
-				Message: parts[1],
+				Message: msg,
 			})
 		}
 	}
