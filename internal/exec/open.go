@@ -137,7 +137,11 @@ func switchToWindow(windowID string) error {
 
 // applyLayout applies the configured layout after creating a new window.
 func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
-	if os.Getenv("TMUX") == "" {
+	inTmux := os.Getenv("TMUX") != ""
+	inZellij := os.Getenv("ZELLIJ") != ""
+
+	// No layout support outside of multiplexers
+	if !inTmux && !inZellij {
 		return nil
 	}
 
@@ -145,7 +149,11 @@ func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
 	switch cfg.Open.Layout {
 	case "dev":
 		// Default dev layout: split horizontally 50/50
-		layoutCmd = "tmux split-window -h -p 50 -c " + wt.Path
+		if inTmux {
+			layoutCmd = "tmux split-window -h -p 50 -c " + wt.Path
+		} else if inZellij {
+			layoutCmd = "zellij action new-pane --direction right --cwd " + wt.Path
+		}
 	case "custom":
 		if cfg.Open.LayoutCommand != "" {
 			layoutCmd = expandTemplate(cfg.Open.LayoutCommand, wt, repo, cfg)
