@@ -7,7 +7,7 @@ Future improvements and features to consider.
 ### High Priority
 - **Cancel long-running operations**: During fetch or PR creation, ESC sets state but doesn't cancel the underlying git operation
 - **Pagination for large worktree lists**: With many worktrees, items get cut off without scrolling
-- **Refresh/reload shortcut**: No way to refresh worktree list without restarting or fetching
+- **Background auto-refresh**: Periodically refresh worktree list in the background (e.g., every 30s or on file system changes)
 - **Create stash from UI**: Can only view/pop/apply/drop stashes, not create new ones
 
 ### Medium Priority
