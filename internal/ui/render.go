@@ -37,34 +37,36 @@ type HelpSection struct {
 
 // RenderParams contains all parameters needed for rendering.
 type RenderParams struct {
-	State             int
-	Worktrees         []git.Worktree
-	Cursor            int
-	Width             int
-	Height            int
-	Loading           bool
-	Err               error
-	Repo              *git.Repo
-	Config            *config.Config
-	FilterInput       string
-	FilterValue       string
-	CreateInput       string
-	DeleteWorktree    *git.Worktree
-	SafetyInfo        *git.SafetyInfo
-	DeleteInput       string
-	Branches          []git.Branch
-	BaseBranchIndex   int
-	CreateBranch      string
-	ShowDetail        bool
-	PRWorktree        *git.Worktree
-	PRState           string
-	RenameWorktree    *git.Worktree
-	RenameInput       string
-	StashWorktree     *git.Worktree
-	StashEntries      []git.StashEntry
-	StashCursor       int
-	SpinnerFrame      string
-	HelpSections      []HelpSection
+	State           int
+	Worktrees       []git.Worktree
+	Cursor          int
+	ViewOffset      int
+	VisibleCount    int
+	Width           int
+	Height          int
+	Loading         bool
+	Err             error
+	Repo            *git.Repo
+	Config          *config.Config
+	FilterInput     string
+	FilterValue     string
+	CreateInput     string
+	DeleteWorktree  *git.Worktree
+	SafetyInfo      *git.SafetyInfo
+	DeleteInput     string
+	Branches        []git.Branch
+	BaseBranchIndex int
+	CreateBranch    string
+	ShowDetail      bool
+	PRWorktree      *git.Worktree
+	PRState         string
+	RenameWorktree  *git.Worktree
+	RenameInput     string
+	StashWorktree   *git.Worktree
+	StashEntries    []git.StashEntry
+	StashCursor     int
+	SpinnerFrame    string
+	HelpSections    []HelpSection
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -139,17 +141,38 @@ func renderList(p RenderParams) string {
 		return wrapInBox(b.String(), p.Width, p.Height)
 	}
 
-	// Worktree list - each entry shows multiple lines of info
-	for i, wt := range p.Worktrees {
+	// Calculate visible range
+	startIdx := p.ViewOffset
+	endIdx := p.ViewOffset + p.VisibleCount
+	if endIdx > len(p.Worktrees) {
+		endIdx = len(p.Worktrees)
+	}
+	if startIdx >= len(p.Worktrees) {
+		startIdx = 0
+	}
+
+	// Show scroll indicator if items above
+	if startIdx > 0 {
+		b.WriteString(PathStyle.Render(fmt.Sprintf("  ↑ %d more above", startIdx)) + "\n")
+	}
+
+	// Worktree list - only render visible items
+	for i := startIdx; i < endIdx; i++ {
+		wt := p.Worktrees[i]
 		isSelected := i == p.Cursor
 		b.WriteString(renderWorktreeEntry(wt, isSelected, contentWidth, p.Config))
 		// Show detail panel for selected item if enabled
 		if isSelected && p.ShowDetail {
 			b.WriteString(renderDetailPanel(wt, contentWidth))
 		}
-		if i < len(p.Worktrees)-1 {
+		if i < endIdx-1 {
 			b.WriteString("\n")
 		}
+	}
+
+	// Show scroll indicator if items below
+	if endIdx < len(p.Worktrees) {
+		b.WriteString("\n" + PathStyle.Render(fmt.Sprintf("  ↓ %d more below", len(p.Worktrees)-endIdx)))
 	}
 
 	// Footer
@@ -471,15 +494,36 @@ func renderFilter(p RenderParams) string {
 	b.WriteString(p.FilterInput + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 
-	for i, wt := range p.Worktrees {
-		b.WriteString(renderWorktreeEntry(wt, i == p.Cursor, contentWidth, p.Config))
-		if i < len(p.Worktrees)-1 {
-			b.WriteString("\n")
-		}
-	}
-
 	if len(p.Worktrees) == 0 {
 		b.WriteString("\n" + PathStyle.Render("No matches found.") + "\n")
+	} else {
+		// Calculate visible range
+		startIdx := p.ViewOffset
+		endIdx := p.ViewOffset + p.VisibleCount
+		if endIdx > len(p.Worktrees) {
+			endIdx = len(p.Worktrees)
+		}
+		if startIdx >= len(p.Worktrees) {
+			startIdx = 0
+		}
+
+		// Show scroll indicator if items above
+		if startIdx > 0 {
+			b.WriteString(PathStyle.Render(fmt.Sprintf("  ↑ %d more above", startIdx)) + "\n")
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			wt := p.Worktrees[i]
+			b.WriteString(renderWorktreeEntry(wt, i == p.Cursor, contentWidth, p.Config))
+			if i < endIdx-1 {
+				b.WriteString("\n")
+			}
+		}
+
+		// Show scroll indicator if items below
+		if endIdx < len(p.Worktrees) {
+			b.WriteString("\n" + PathStyle.Render(fmt.Sprintf("  ↓ %d more below", len(p.Worktrees)-endIdx)))
+		}
 	}
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")

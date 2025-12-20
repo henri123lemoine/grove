@@ -43,6 +43,7 @@ type Model struct {
 	filteredWorktrees []git.Worktree
 	branches          []git.Branch
 	cursor            int
+	viewOffset        int
 
 	// State
 	state   State
@@ -142,6 +143,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.ensureCursorVisible()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -174,6 +176,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.worktrees = msg.Worktrees
 		m.applyFilter()
+		m.ensureCursorVisible()
 		return m, nil
 
 	case BranchesLoadedMsg:
@@ -405,18 +408,22 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Up):
 		if m.cursor > 0 {
 			m.cursor--
+			m.ensureCursorVisible()
 		}
 	case key.Matches(msg, m.keys.Down):
 		if m.cursor < len(m.filteredWorktrees)-1 {
 			m.cursor++
+			m.ensureCursorVisible()
 		}
 	case key.Matches(msg, m.keys.Home):
 		m.cursor = 0
+		m.viewOffset = 0
 	case key.Matches(msg, m.keys.End):
 		m.cursor = len(m.filteredWorktrees) - 1
 		if m.cursor < 0 {
 			m.cursor = 0
 		}
+		m.ensureCursorVisible()
 	case key.Matches(msg, m.keys.Open):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
@@ -788,34 +795,36 @@ func (m *Model) applyFilter() {
 // View renders the UI.
 func (m Model) View() string {
 	return ui.Render(ui.RenderParams{
-		State:             int(m.state),
-		Worktrees:         m.filteredWorktrees,
-		Cursor:            m.cursor,
-		Width:             m.width,
-		Height:            m.height,
-		Loading:           m.loading,
-		Err:               m.err,
-		Repo:              m.repo,
-		Config:            m.config,
-		FilterInput:       m.filterInput.View(),
-		FilterValue:       m.filterInput.Value(),
-		CreateInput:       m.createInput.View(),
-		DeleteWorktree:    m.deleteWorktree,
-		SafetyInfo:        m.safetyInfo,
-		DeleteInput:       m.deleteInput.View(),
-		ShowDetail:        m.showDetail,
-		Branches:          m.branches,
-		BaseBranchIndex:   m.baseBranchIndex,
-		CreateBranch:      m.createBranch,
-		PRWorktree:        m.prWorktree,
-		PRState:           m.prState,
-		RenameWorktree:    m.renameWorktree,
-		RenameInput:       m.renameInput.View(),
-		StashWorktree:     m.stashWorktree,
-		StashEntries:      m.stashEntries,
-		StashCursor:       m.stashCursor,
-		SpinnerFrame:      m.spinner.View(),
-		HelpSections:      m.keys.HelpSections(),
+		State:           int(m.state),
+		Worktrees:       m.filteredWorktrees,
+		Cursor:          m.cursor,
+		ViewOffset:      m.viewOffset,
+		VisibleCount:    m.visibleItemCount(),
+		Width:           m.width,
+		Height:          m.height,
+		Loading:         m.loading,
+		Err:             m.err,
+		Repo:            m.repo,
+		Config:          m.config,
+		FilterInput:     m.filterInput.View(),
+		FilterValue:     m.filterInput.Value(),
+		CreateInput:     m.createInput.View(),
+		DeleteWorktree:  m.deleteWorktree,
+		SafetyInfo:      m.safetyInfo,
+		DeleteInput:     m.deleteInput.View(),
+		ShowDetail:      m.showDetail,
+		Branches:        m.branches,
+		BaseBranchIndex: m.baseBranchIndex,
+		CreateBranch:    m.createBranch,
+		PRWorktree:      m.prWorktree,
+		PRState:         m.prState,
+		RenameWorktree:  m.renameWorktree,
+		RenameInput:     m.renameInput.View(),
+		StashWorktree:   m.stashWorktree,
+		StashEntries:    m.stashEntries,
+		StashCursor:     m.stashCursor,
+		SpinnerFrame:    m.spinner.View(),
+		HelpSections:    m.keys.HelpSections(),
 	})
 }
 
@@ -1030,4 +1039,52 @@ func replace(s, old, new string) string {
 		}
 	}
 	return s
+}
+
+// visibleItemCount returns how many worktree items can fit in the viewport.
+func (m Model) visibleItemCount() int {
+	// Account for UI chrome:
+	// - Header: 2 lines (title + divider)
+	// - Footer: 2 lines (divider + help)
+	// - Box borders: 2 lines
+	// Total overhead: 6 lines
+	const overhead = 6
+
+	// Each worktree entry takes 2-3 lines (depending on ShowCommits)
+	// Plus 1 line for the separator between entries
+	linesPerItem := 2
+	if m.config != nil && m.config.UI.ShowCommits {
+		linesPerItem = 3
+	}
+	// Account for separator line between entries
+	linesPerItem++
+
+	availableLines := m.height - overhead
+	if availableLines < linesPerItem {
+		return 1
+	}
+	return availableLines / linesPerItem
+}
+
+// ensureCursorVisible adjusts viewOffset to keep cursor in visible area.
+func (m *Model) ensureCursorVisible() {
+	visible := m.visibleItemCount()
+	if visible <= 0 {
+		visible = 1
+	}
+
+	// If cursor is above the visible area, scroll up
+	if m.cursor < m.viewOffset {
+		m.viewOffset = m.cursor
+	}
+
+	// If cursor is below the visible area, scroll down
+	if m.cursor >= m.viewOffset+visible {
+		m.viewOffset = m.cursor - visible + 1
+	}
+
+	// Ensure viewOffset doesn't go negative
+	if m.viewOffset < 0 {
+		m.viewOffset = 0
+	}
 }
