@@ -2,10 +2,12 @@
 package exec
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/henrilemoine/grove/internal/config"
 	"github.com/henrilemoine/grove/internal/git"
@@ -53,7 +55,7 @@ func OpenDetached(cfg *config.Config, command string, wt *git.Worktree) error {
 
 // OpenWithConfig executes the open command with full config support.
 // Returns true if a new window was created (vs switching to existing).
-func OpenWithConfig(cfg *config.Config, wt *git.Worktree) (bool, error) {
+func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutConfig) (bool, error) {
 	repo, err := git.GetRepo()
 	if err != nil {
 		return false, err
@@ -88,9 +90,14 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree) (bool, error) {
 		return false, err
 	}
 
-	// Apply layout if new window and layout is configured
-	if isNewWindow && cfg.Open.Layout != "none" && cfg.Open.Layout != "" {
+	// Apply named layout if provided
+	if isNewWindow && layout != nil {
+		// Small delay to ensure tmux window is ready
+		time.Sleep(100 * time.Millisecond)
 		// Layout errors are non-fatal - we still opened the window successfully
+		_ = applyNamedLayout(layout, wt, repo, cfg)
+	} else if isNewWindow && cfg.Open.Layout != "none" && cfg.Open.Layout != "" {
+		// Fall back to legacy layout system
 		_ = applyLayout(cfg, wt, repo)
 	}
 
@@ -134,7 +141,7 @@ func switchToWindow(windowID string) error {
 	return cmd.Run()
 }
 
-// applyLayout applies the configured layout after creating a new window.
+// applyLayout applies the configured layout after creating a new window (legacy system).
 func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
 	inTmux := os.Getenv("TMUX") != ""
 	inZellij := os.Getenv("ZELLIJ") != ""
@@ -167,6 +174,105 @@ func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 	return cmd.Run()
+}
+
+// applyNamedLayout applies a named layout with multiple panes.
+func applyNamedLayout(layout *config.LayoutConfig, wt *git.Worktree, repo *git.Repo, cfg *config.Config) error {
+	// Only tmux is supported
+	if os.Getenv("TMUX") == "" {
+		return nil
+	}
+
+	if len(layout.Panes) == 0 {
+		return nil
+	}
+
+	// Track pane IDs as we create them
+	// Pane 0 is the initial pane (already exists in the new window)
+	paneIDs := make([]string, len(layout.Panes))
+
+	// Get the current pane ID (pane 0)
+	cmd := exec.Command("tmux", "display-message", "-p", "#{pane_id}")
+	output, err := cmd.Output()
+	if err != nil {
+		return fmt.Errorf("failed to get current pane ID: %w", err)
+	}
+	paneIDs[0] = strings.TrimSpace(string(output))
+
+	// Run command for pane 0 if specified
+	if len(layout.Panes) > 0 && layout.Panes[0].Command != "" {
+		expandedCmd := expandTemplate(layout.Panes[0].Command, wt, repo, cfg)
+		sendCmd := exec.Command("tmux", "send-keys", "-t", paneIDs[0], expandedCmd, "Enter")
+		_ = sendCmd.Run()
+	}
+
+	// Create additional panes
+	for i := 1; i < len(layout.Panes); i++ {
+		pane := layout.Panes[i]
+
+		// Validate split_from reference
+		if pane.SplitFrom < 0 || pane.SplitFrom >= i {
+			continue // Skip invalid pane
+		}
+
+		targetPane := paneIDs[pane.SplitFrom]
+		if targetPane == "" {
+			continue // Skip if target pane doesn't exist
+		}
+
+		// Build split command
+		splitArgs := []string{"split-window"}
+
+		// Direction
+		switch pane.Direction {
+		case "right":
+			splitArgs = append(splitArgs, "-h")
+		case "left":
+			splitArgs = append(splitArgs, "-hb")
+		case "down":
+			splitArgs = append(splitArgs, "-v")
+		case "up":
+			splitArgs = append(splitArgs, "-vb")
+		default:
+			splitArgs = append(splitArgs, "-h") // Default to right
+		}
+
+		// Size (percentage)
+		if pane.Size > 0 && pane.Size < 100 {
+			splitArgs = append(splitArgs, "-p", fmt.Sprintf("%d", pane.Size))
+		}
+
+		// Target pane
+		splitArgs = append(splitArgs, "-t", targetPane)
+
+		// Working directory
+		splitArgs = append(splitArgs, "-c", wt.Path)
+
+		// Print new pane ID
+		splitArgs = append(splitArgs, "-P", "-F", "#{pane_id}")
+
+		// Execute split
+		splitCmd := exec.Command("tmux", splitArgs...)
+		splitOutput, err := splitCmd.Output()
+		if err != nil {
+			continue // Skip this pane on error
+		}
+
+		newPaneID := strings.TrimSpace(string(splitOutput))
+		paneIDs[i] = newPaneID
+
+		// Run command in new pane if specified
+		if pane.Command != "" {
+			expandedCmd := expandTemplate(pane.Command, wt, repo, cfg)
+			sendCmd := exec.Command("tmux", "send-keys", "-t", newPaneID, expandedCmd, "Enter")
+			_ = sendCmd.Run()
+		}
+
+		// Small delay between pane creations
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return nil
 }
 
 // expandTemplate expands template variables in the command.

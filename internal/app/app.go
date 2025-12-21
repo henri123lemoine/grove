@@ -30,6 +30,7 @@ const (
 	StatePR
 	StateRename
 	StateStash
+	StateSelectLayout
 )
 
 // Model is the main application model.
@@ -51,10 +52,11 @@ type Model struct {
 	err     error
 
 	// Create flow
-	createInput     textinput.Model
-	createBranch    string
-	createIsNew     bool
-	baseBranchIndex int
+	createInput      textinput.Model
+	createBranch     string
+	createIsNew      bool
+	baseBranchIndex  int
+	baseViewOffset   int
 
 	// Delete flow
 	deleteWorktree *git.Worktree
@@ -76,6 +78,10 @@ type Model struct {
 	stashWorktree *git.Worktree
 	stashEntries  []git.StashEntry
 	stashCursor   int
+
+	// Layout selection flow
+	layoutWorktree *git.Worktree
+	layoutCursor   int
 
 	// UI
 	width      int
@@ -366,6 +372,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleRenameKeys(msg)
 	case StateStash:
 		return m.handleStashKeys(msg)
+	case StateSelectLayout:
+		return m.handleLayoutKeys(msg)
 	}
 	return m, nil
 }
@@ -428,7 +436,16 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
 			m.selectedWorktree = wt
-			// Find current worktree for stash_on_switch
+
+			// If layouts are defined, show layout selector
+			if len(m.config.Layouts) > 0 {
+				m.layoutWorktree = wt
+				m.layoutCursor = 0
+				m.state = StateSelectLayout
+				return m, nil
+			}
+
+			// No layouts, open directly
 			var currentWt *git.Worktree
 			for i := range m.worktrees {
 				if m.worktrees[i].IsCurrent {
@@ -436,7 +453,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					break
 				}
 			}
-			return m, openWorktree(m.config, wt, currentWt)
+			return m, openWorktree(m.config, wt, currentWt, nil)
 		}
 	case key.Matches(msg, m.keys.New):
 		m.state = StateCreate
@@ -546,7 +563,7 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 								break
 							}
 						}
-						return m, openWorktree(m.config, &m.worktrees[i], currentWt)
+						return m, openWorktree(m.config, &m.worktrees[i], currentWt, nil)
 					}
 				}
 			}
@@ -574,20 +591,24 @@ func (m Model) handleSelectBaseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case key.Matches(msg, m.keys.Up):
 		if m.baseBranchIndex > 0 {
 			m.baseBranchIndex--
+			m.ensureBaseBranchVisible()
 		}
 	case key.Matches(msg, m.keys.Down):
 		if m.baseBranchIndex < len(m.branches)-1 {
 			m.baseBranchIndex++
+			m.ensureBaseBranchVisible()
 		}
 	case key.Matches(msg, m.keys.Cancel):
 		m.state = StateList
 		m.createInput.Reset()
+		m.baseViewOffset = 0
 		return m, nil
 	case key.Matches(msg, m.keys.Confirm):
 		baseBranch := ""
 		if m.baseBranchIndex < len(m.branches) {
 			baseBranch = m.branches[m.baseBranchIndex].Name
 		}
+		m.baseViewOffset = 0
 		return m, createWorktree(m.config, m.createBranch, true, baseBranch)
 	}
 	return m, nil
@@ -756,6 +777,51 @@ func (m Model) handleStashKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleLayoutKeys handles key presses in layout selection.
+func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Number of options: layouts + "None" option
+	numOptions := len(m.config.Layouts) + 1
+
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.state = StateList
+		m.layoutWorktree = nil
+		return m, nil
+	case tea.KeyUp:
+		if m.layoutCursor > 0 {
+			m.layoutCursor--
+		}
+		return m, nil
+	case tea.KeyDown:
+		if m.layoutCursor < numOptions-1 {
+			m.layoutCursor++
+		}
+		return m, nil
+	case tea.KeyEnter:
+		// Find current worktree for stash_on_switch
+		var currentWt *git.Worktree
+		for i := range m.worktrees {
+			if m.worktrees[i].IsCurrent {
+				currentWt = &m.worktrees[i]
+				break
+			}
+		}
+
+		// Determine selected layout (nil = "None" option)
+		var selectedLayout *config.LayoutConfig
+		if m.layoutCursor < len(m.config.Layouts) {
+			selectedLayout = &m.config.Layouts[m.layoutCursor]
+		}
+
+		wt := m.layoutWorktree
+		m.state = StateList
+		m.layoutWorktree = nil
+		return m, openWorktree(m.config, wt, currentWt, selectedLayout)
+	}
+
+	return m, nil
+}
+
 // worktreeSource implements fuzzy.Source for worktree fuzzy matching.
 type worktreeSource []git.Worktree
 
@@ -813,9 +879,11 @@ func (m Model) View() string {
 		SafetyInfo:      m.safetyInfo,
 		DeleteInput:     m.deleteInput.View(),
 		ShowDetail:      m.showDetail,
-		Branches:        m.branches,
-		BaseBranchIndex: m.baseBranchIndex,
-		CreateBranch:    m.createBranch,
+		Branches:           m.branches,
+		BaseBranchIndex:    m.baseBranchIndex,
+		BaseViewOffset:     m.baseViewOffset,
+		VisibleBranchCount: m.visibleBranchCount(),
+		CreateBranch:       m.createBranch,
 		PRWorktree:      m.prWorktree,
 		PRState:         m.prState,
 		RenameWorktree:  m.renameWorktree,
@@ -823,6 +891,8 @@ func (m Model) View() string {
 		StashWorktree:   m.stashWorktree,
 		StashEntries:    m.stashEntries,
 		StashCursor:     m.stashCursor,
+		LayoutWorktree:  m.layoutWorktree,
+		LayoutCursor:    m.layoutCursor,
 		SpinnerFrame:    m.spinner.View(),
 		HelpSections:    m.keys.HelpSections(),
 	})
@@ -890,7 +960,7 @@ func deleteWorktree(path string, force bool) tea.Cmd {
 	}
 }
 
-func openWorktree(cfg *config.Config, wt *git.Worktree, currentWt *git.Worktree) tea.Cmd {
+func openWorktree(cfg *config.Config, wt *git.Worktree, currentWt *git.Worktree, layout *config.LayoutConfig) tea.Cmd {
 	return func() tea.Msg {
 		// Handle stash_on_switch: stash current worktree if dirty
 		if cfg.Open.StashOnSwitch && currentWt != nil && currentWt.IsDirty && currentWt.Path != wt.Path {
@@ -900,7 +970,7 @@ func openWorktree(cfg *config.Config, wt *git.Worktree, currentWt *git.Worktree)
 			}
 		}
 
-		isNew, err := exec.OpenWithConfig(cfg, wt)
+		isNew, err := exec.OpenWithConfig(cfg, wt, layout)
 		return WorktreeOpenedMsg{Err: err, IsNewWindow: isNew}
 	}
 }
@@ -1087,4 +1157,45 @@ func (m *Model) ensureCursorVisible() {
 	if m.viewOffset < 0 {
 		m.viewOffset = 0
 	}
+}
+
+// ensureBaseBranchVisible adjusts baseViewOffset to keep baseBranchIndex in visible area.
+func (m *Model) ensureBaseBranchVisible() {
+	visible := m.visibleBranchCount()
+	if visible <= 0 {
+		visible = 1
+	}
+
+	// If cursor is above the visible area, scroll up
+	if m.baseBranchIndex < m.baseViewOffset {
+		m.baseViewOffset = m.baseBranchIndex
+	}
+
+	// If cursor is below the visible area, scroll down
+	if m.baseBranchIndex >= m.baseViewOffset+visible {
+		m.baseViewOffset = m.baseBranchIndex - visible + 1
+	}
+
+	// Ensure baseViewOffset doesn't go negative
+	if m.baseViewOffset < 0 {
+		m.baseViewOffset = 0
+	}
+}
+
+// visibleBranchCount returns how many branch items can fit in the viewport.
+func (m Model) visibleBranchCount() int {
+	// Account for UI chrome:
+	// - Header: 2 lines (title + divider)
+	// - "New branch: X" line + blank: 2 lines
+	// - Footer: 2 lines (divider + help)
+	// - Box borders: 2 lines
+	// Total overhead: 8 lines
+	const overhead = 8
+
+	// Each branch entry takes 1 line
+	availableLines := m.height - overhead
+	if availableLines < 1 {
+		return 1
+	}
+	return availableLines
 }

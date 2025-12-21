@@ -20,6 +20,7 @@ type Config struct {
 	Safety   SafetyConfig   `toml:"safety"`
 	UI       UIConfig       `toml:"ui"`
 	Keys     KeysConfig     `toml:"keys"`
+	Layouts  []LayoutConfig `toml:"layouts"`
 }
 
 // GeneralConfig contains general settings.
@@ -96,6 +97,33 @@ type TemplateConfig struct {
 
 	// Commands to run after creating worktree
 	PostCreateCmd []string `toml:"post_create_cmd"`
+}
+
+// PaneConfig defines a pane in a layout.
+type PaneConfig struct {
+	// Which pane to split from (0 = first/main pane)
+	SplitFrom int `toml:"split_from"`
+
+	// Split direction: "right", "down", "left", "up"
+	Direction string `toml:"direction"`
+
+	// Size as percentage (1-99)
+	Size int `toml:"size"`
+
+	// Command to run in this pane (template vars supported)
+	Command string `toml:"command"`
+}
+
+// LayoutConfig defines a named layout with multiple panes.
+type LayoutConfig struct {
+	// Unique name for this layout
+	Name string `toml:"name"`
+
+	// Human-readable description
+	Description string `toml:"description"`
+
+	// Pane definitions (first pane is the initial window)
+	Panes []PaneConfig `toml:"panes"`
 }
 
 // SafetyConfig contains safety settings.
@@ -201,7 +229,18 @@ func DefaultConfig() *Config {
 			Help:   "?",
 			Quit:   "q,ctrl+c",
 		},
+		Layouts: []LayoutConfig{},
 	}
+}
+
+// GetLayoutByName returns the layout with the given name, or nil if not found.
+func (c *Config) GetLayoutByName(name string) *LayoutConfig {
+	for i := range c.Layouts {
+		if c.Layouts[i].Name == name {
+			return &c.Layouts[i]
+		}
+	}
+	return nil
 }
 
 // ConfigPath returns the path to the config file.
@@ -457,6 +496,60 @@ func (c *Config) Validate() []string {
 		c.UI.Theme != "dark" &&
 		c.UI.Theme != "light" {
 		warnings = append(warnings, fmt.Sprintf("Invalid value for ui.theme: %s (expected auto, dark, or light)", c.UI.Theme))
+	}
+
+	// Validate layouts
+	layoutNames := make(map[string]bool)
+	validDirections := map[string]bool{"right": true, "down": true, "left": true, "up": true, "": true}
+	for _, layout := range c.Layouts {
+		// Check for duplicate names
+		if layoutNames[layout.Name] {
+			warnings = append(warnings, fmt.Sprintf("Duplicate layout name: %s", layout.Name))
+		}
+		layoutNames[layout.Name] = true
+
+		// Check for empty name
+		if layout.Name == "" {
+			warnings = append(warnings, "Layout has empty name")
+		}
+
+		// Validate panes
+		for i, pane := range layout.Panes {
+			// Check direction is valid
+			if !validDirections[pane.Direction] {
+				warnings = append(warnings, fmt.Sprintf("Layout %s pane %d: invalid direction '%s' (expected right, down, left, up)", layout.Name, i, pane.Direction))
+			}
+
+			// Check split_from is valid (first pane shouldn't split from anything)
+			if i == 0 && pane.SplitFrom != 0 && pane.Direction != "" {
+				warnings = append(warnings, fmt.Sprintf("Layout %s pane 0: first pane should not have split_from set", layout.Name))
+			}
+			if i > 0 && pane.SplitFrom >= i {
+				warnings = append(warnings, fmt.Sprintf("Layout %s pane %d: split_from (%d) must reference an earlier pane", layout.Name, i, pane.SplitFrom))
+			}
+
+			// Check size is valid (1-99)
+			if pane.Size != 0 && (pane.Size < 1 || pane.Size > 99) {
+				warnings = append(warnings, fmt.Sprintf("Layout %s pane %d: size must be 1-99, got %d", layout.Name, i, pane.Size))
+			}
+
+			// Check template vars in command
+			if pane.Command != "" {
+				paneVars := extractTemplateVars(pane.Command)
+				for _, v := range paneVars {
+					found := false
+					for _, valid := range validVars {
+						if v == valid {
+							found = true
+							break
+						}
+					}
+					if !found {
+						warnings = append(warnings, fmt.Sprintf("Layout %s pane %d: unknown template variable %s", layout.Name, i, v))
+					}
+				}
+			}
+		}
 	}
 
 	return warnings

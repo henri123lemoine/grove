@@ -21,6 +21,7 @@ const (
 	StatePR
 	StateRename
 	StateStash
+	StateSelectLayout
 )
 
 // HelpBinding represents a keybinding for help display.
@@ -37,36 +38,40 @@ type HelpSection struct {
 
 // RenderParams contains all parameters needed for rendering.
 type RenderParams struct {
-	State           int
-	Worktrees       []git.Worktree
-	Cursor          int
-	ViewOffset      int
-	VisibleCount    int
-	Width           int
-	Height          int
-	Loading         bool
-	Err             error
-	Repo            *git.Repo
-	Config          *config.Config
-	FilterInput     string
-	FilterValue     string
-	CreateInput     string
-	DeleteWorktree  *git.Worktree
-	SafetyInfo      *git.SafetyInfo
-	DeleteInput     string
-	Branches        []git.Branch
-	BaseBranchIndex int
-	CreateBranch    string
-	ShowDetail      bool
-	PRWorktree      *git.Worktree
-	PRState         string
-	RenameWorktree  *git.Worktree
-	RenameInput     string
-	StashWorktree   *git.Worktree
-	StashEntries    []git.StashEntry
-	StashCursor     int
-	SpinnerFrame    string
-	HelpSections    []HelpSection
+	State              int
+	Worktrees          []git.Worktree
+	Cursor             int
+	ViewOffset         int
+	VisibleCount       int
+	Width              int
+	Height             int
+	Loading            bool
+	Err                error
+	Repo               *git.Repo
+	Config             *config.Config
+	FilterInput        string
+	FilterValue        string
+	CreateInput        string
+	DeleteWorktree     *git.Worktree
+	SafetyInfo         *git.SafetyInfo
+	DeleteInput        string
+	Branches           []git.Branch
+	BaseBranchIndex    int
+	BaseViewOffset     int
+	VisibleBranchCount int
+	CreateBranch       string
+	ShowDetail         bool
+	PRWorktree         *git.Worktree
+	PRState            string
+	RenameWorktree     *git.Worktree
+	RenameInput        string
+	StashWorktree      *git.Worktree
+	StashEntries       []git.StashEntry
+	StashCursor        int
+	LayoutWorktree     *git.Worktree
+	LayoutCursor       int
+	SpinnerFrame       string
+	HelpSections       []HelpSection
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -105,6 +110,8 @@ func Render(p RenderParams) string {
 		return renderRename(p)
 	case StateStash:
 		return renderStash(p)
+	case StateSelectLayout:
+		return renderSelectLayout(p)
 	default:
 		return renderList(p)
 	}
@@ -379,7 +386,23 @@ func renderSelectBase(p RenderParams) string {
 			showBranchTypes = p.Config.UI.ShowBranchTypes
 		}
 
-		for i, branch := range p.Branches {
+		// Calculate visible range
+		startIdx := p.BaseViewOffset
+		endIdx := p.BaseViewOffset + p.VisibleBranchCount
+		if endIdx > len(p.Branches) {
+			endIdx = len(p.Branches)
+		}
+		if startIdx >= len(p.Branches) {
+			startIdx = 0
+		}
+
+		// Show scroll indicator if items above
+		if startIdx > 0 {
+			b.WriteString(PathStyle.Render(fmt.Sprintf("  ↑ %d more above", startIdx)) + "\n")
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			branch := p.Branches[i]
 			cursor := "  "
 			name := branch.Name
 			if i == p.BaseBranchIndex {
@@ -408,6 +431,11 @@ func renderSelectBase(p RenderParams) string {
 			}
 
 			b.WriteString(cursor + name + typeIndicator + currentIndicator + "\n")
+		}
+
+		// Show scroll indicator if items below
+		if endIdx < len(p.Branches) {
+			b.WriteString(PathStyle.Render(fmt.Sprintf("  ↓ %d more below", len(p.Branches)-endIdx)) + "\n")
 		}
 	}
 
@@ -665,6 +693,60 @@ func renderStash(p RenderParams) string {
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	b.WriteString(HelpStyle.Render("p pop • a apply • d drop • esc cancel"))
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderSelectLayout renders the layout selection view.
+func renderSelectLayout(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("SELECT LAYOUT") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	if p.LayoutWorktree == nil {
+		return wrapInBox(b.String(), p.Width, p.Height)
+	}
+
+	b.WriteString("Opening: " + SelectedStyle.Render(p.LayoutWorktree.Branch) + "\n\n")
+
+	// List available layouts
+	if p.Config == nil || len(p.Config.Layouts) == 0 {
+		b.WriteString(PathStyle.Render("No layouts defined.\n"))
+	} else {
+		for i, layout := range p.Config.Layouts {
+			cursor := "  "
+			if i == p.LayoutCursor {
+				cursor = SelectedStyle.Render("› ")
+			}
+
+			name := layout.Name
+			desc := layout.Description
+			if desc == "" {
+				desc = fmt.Sprintf("%d panes", len(layout.Panes))
+			}
+
+			if i == p.LayoutCursor {
+				b.WriteString(cursor + SelectedStyle.Render(name) + " " + PathStyle.Render(desc) + "\n")
+			} else {
+				b.WriteString(cursor + BranchStyle.Render(name) + " " + PathStyle.Render(desc) + "\n")
+			}
+		}
+
+		// "None" option
+		noneIdx := len(p.Config.Layouts)
+		cursor := "  "
+		if p.LayoutCursor == noneIdx {
+			cursor = SelectedStyle.Render("› ")
+			b.WriteString(cursor + SelectedStyle.Render("None") + " " + PathStyle.Render("Open without layout") + "\n")
+		} else {
+			b.WriteString(cursor + BranchStyle.Render("None") + " " + PathStyle.Render("Open without layout") + "\n")
+		}
+	}
+
+	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
+	b.WriteString(HelpStyle.Render("↑/↓ select • enter confirm • esc cancel"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }
