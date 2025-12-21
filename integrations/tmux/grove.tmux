@@ -21,7 +21,7 @@ get_tmux_option() {
 grove_key=$(get_tmux_option "@grove-key" "$default_key")
 
 # Bind the key to launch grove
-tmux bind-key "$grove_key" display-popup -E -w 80% -h 80% "grove"
+tmux bind-key "$grove_key" display-popup -E -w 80% -h 80% -d "#{pane_current_path}" "grove"
 
 # Echo success message
 tmux display-message "Grove plugin loaded. Press prefix + $grove_key to open."
