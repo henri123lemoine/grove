@@ -5,7 +5,7 @@ Future improvements and features to consider.
 ## Missing Features
 
 ### High Priority
-- **Cancel long-running operations**: During fetch or PR creation, ESC sets state but doesn't cancel the underlying git operation
+- **Cancel long-running operations**: During fetch, ESC sets state but doesn't cancel the underlying git operation
 - **Pagination for large worktree lists**: With many worktrees, items get cut off without scrolling
 - **Refresh/reload shortcut**: No way to refresh worktree list without restarting or fetching
 - **Create stash from UI**: Can only view/pop/apply/drop stashes, not create new ones
@@ -18,7 +18,6 @@ Future improvements and features to consider.
 - **Create worktree at specific commit/tag**: Currently only supports branches
 
 ### Low Priority
-- **GitLab/Bitbucket PR support**: Auth check only validates `gh` CLI, not `glab` or other tools
 - **Shell quoting for paths with spaces**: Template expansion doesn't quote paths
 
 ## Edge Cases to Address

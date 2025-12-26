@@ -116,7 +116,6 @@ Navigation:
 Actions:
   n            New worktree
   d            Delete worktree
-  p            Create PR
   r            Rename branch
   f            Fetch all remotes
   /            Filter worktrees

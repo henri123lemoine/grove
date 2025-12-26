@@ -54,22 +54,6 @@ type ErrorMsg struct {
 	Err error
 }
 
-// GHAuthCheckedMsg is sent when gh auth status is checked.
-type GHAuthCheckedMsg struct {
-	Authenticated bool
-	Err           error
-}
-
-// PushCompletedMsg is sent when branch push completes.
-type PushCompletedMsg struct {
-	Err error
-}
-
-// PRCreatedMsg is sent when PR creation completes.
-type PRCreatedMsg struct {
-	Err error
-}
-
 // BranchRenamedMsg is sent when branch rename completes.
 type BranchRenamedMsg struct {
 	OldName string

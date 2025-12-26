@@ -139,18 +139,13 @@ We analyzed 5 existing worktree management tools during design. Here's what we l
 3. **SIGINT Handling** - Restores stashed changes even if interrupted
 4. **Merge Safety** - Checks uncommitted changes, requires explicit flags for destructive operations
 
-**PR Integration:**
-- Fetches PR without switching context using `git fetch refs/pull/${prNumber}/head:branch`
-- Supports both GitHub (gh) and GitLab (glab)
-- Falls back to REST API if CLI not installed
-
 **Limitations:**
 - **No real worktree switching** - Only opens in editor
 - **No multiplexer integration** - Editor-focused
 - **TypeScript, not binary** - Requires Node.js
 - No TUI list view (uses prompts)
 
-**Key insight**: worktree-cli is the most feature-complete tool. The atomic operation pattern, stash handling, and PR integration are worth replicating.
+**Key insight**: worktree-cli is the most feature-complete tool. The atomic operation pattern and stash handling are worth replicating.
 
 ---
 
@@ -259,13 +254,6 @@ Configurable action with template variables:
 
 Press `r` to rename the current worktree's branch. Runs `git branch -m old new`.
 
-#### PR Creation
-
-Press `p` to create a pull request:
-- Checks if `gh` CLI is installed and authenticated
-- Auto-pushes branch if not tracking remote (configurable)
-- Opens PR creation flow
-
 ### Additional Features
 
 #### Fuzzy Search/Filter
@@ -294,7 +282,6 @@ down = "down,j"
 open = "enter"
 new = "n"
 delete = "d"
-pr = "p"
 rename = "r"
 filter = "/"
 fetch = "f"

@@ -16,7 +16,6 @@ type Config struct {
 	General  GeneralConfig  `toml:"general"`
 	Open     OpenConfig     `toml:"open"`
 	Delete   DeleteConfig   `toml:"delete"`
-	PR       PRConfig       `toml:"pr"`
 	Worktree WorktreeConfig `toml:"worktree"`
 	Safety   SafetyConfig   `toml:"safety"`
 	UI       UIConfig       `toml:"ui"`
@@ -69,15 +68,6 @@ type DeleteConfig struct {
 	// "never" - don't close the window/tab
 	// Works with tmux (windows) and zellij (tabs)
 	CloseWindowAction string `toml:"close_window_action"`
-}
-
-// PRConfig contains settings for PR creation.
-type PRConfig struct {
-	// Command to create PR (e.g., "gh pr create" or "glab mr create")
-	Command string `toml:"command"`
-
-	// Auto-push branch if no upstream
-	AutoPush bool `toml:"auto_push"`
 }
 
 // WorktreeConfig contains settings for worktree creation.
@@ -173,7 +163,6 @@ type KeysConfig struct {
 	Open   string `toml:"open"`
 	New    string `toml:"new"`
 	Delete string `toml:"delete"`
-	PR     string `toml:"pr"`
 	Rename string `toml:"rename"`
 	Filter string `toml:"filter"`
 	Fetch  string `toml:"fetch"`
@@ -203,10 +192,6 @@ func DefaultConfig() *Config {
 		Delete: DeleteConfig{
 			CloseWindowAction: "ask",
 		},
-		PR: PRConfig{
-			Command:  "gh pr create",
-			AutoPush: true,
-		},
 		Worktree: WorktreeConfig{
 			CopyPatterns:  []string{},
 			CopyIgnores:   []string{},
@@ -233,7 +218,6 @@ func DefaultConfig() *Config {
 			Open:   "enter",
 			New:    "n",
 			Delete: "d",
-			PR:     "p",
 			Rename: "r",
 			Filter: "/",
 			Fetch:  "f",
@@ -389,12 +373,6 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("# \"never\" - don't close the window/tab\n")
 	b.WriteString("close_window_action = \"ask\"\n\n")
 
-	b.WriteString("[pr]\n")
-	b.WriteString("# Command to create PR\n")
-	b.WriteString("command = \"gh pr create\"\n")
-	b.WriteString("# Auto-push branch if no upstream\n")
-	b.WriteString("auto_push = true\n\n")
-
 	b.WriteString("[worktree]\n")
 	b.WriteString("# File patterns to copy to new worktrees\n")
 	b.WriteString("# copy_patterns = [\".env*\", \".vscode/**\"]\n")
@@ -434,7 +412,6 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("# open = \"enter\"\n")
 	b.WriteString("# new = \"n\"\n")
 	b.WriteString("# delete = \"d\"\n")
-	b.WriteString("# pr = \"p\"\n")
 	b.WriteString("# rename = \"r\"\n")
 	b.WriteString("# filter = \"/\"\n")
 	b.WriteString("# fetch = \"f\"\n")

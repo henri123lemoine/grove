@@ -34,7 +34,6 @@ grove
 | `enter` | Open worktree |
 | `n` | New worktree |
 | `d` | Delete worktree |
-| `p` | Create pull request |
 | `r` | Rename branch |
 | `s` | Manage stashes |
 | `P` | Prune stale worktrees |

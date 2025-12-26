@@ -19,7 +19,6 @@ const (
 	StateFilter
 	StateFetching
 	StateHelp
-	StatePR
 	StateRename
 	StateStash
 	StateSelectLayout
@@ -62,8 +61,6 @@ type RenderParams struct {
 	VisibleBranchCount int
 	CreateBranch       string
 	ShowDetail         bool
-	PRWorktree         *git.Worktree
-	PRState            string
 	RenameWorktree     *git.Worktree
 	RenameInput        string
 	StashWorktree      *git.Worktree
@@ -109,8 +106,6 @@ func Render(p RenderParams) string {
 		return renderFetching(p)
 	case StateHelp:
 		return renderHelp(p)
-	case StatePR:
-		return renderPR(p)
 	case StateRename:
 		return renderRename(p)
 	case StateStash:
@@ -190,8 +185,8 @@ func renderList(p RenderParams) string {
 	// Footer
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	helpText := compactHelp(
-		"enter open • n new • d delete • p PR • r rename • f fetch • / filter • tab detail • ? help • q quit",
-		"enter•n•d•p•r•f•/•tab•?•q",
+		"enter open • n new • d delete • r rename • f fetch • / filter • tab detail • ? help • q quit",
+		"enter•n•d•r•f•/•tab•?•q",
 		p.Width,
 	)
 	b.WriteString(HelpStyle.Render(helpText))
@@ -630,37 +625,6 @@ func renderHelp(p RenderParams) string {
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	b.WriteString(HelpStyle.Render("Press any key to close"))
-
-	return wrapInBox(b.String(), p.Width, p.Height)
-}
-
-// renderPR renders the PR creation flow.
-func renderPR(p RenderParams) string {
-	var b strings.Builder
-	contentWidth := p.Width - 4
-
-	b.WriteString(HeaderStyle.Render("CREATE PULL REQUEST") + "\n")
-	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
-
-	if p.PRWorktree == nil {
-		return wrapInBox(b.String(), p.Width, p.Height)
-	}
-
-	b.WriteString("Branch: " + SelectedStyle.Render(p.PRWorktree.Branch) + "\n\n")
-
-	switch p.PRState {
-	case "checking":
-		b.WriteString(p.SpinnerFrame + " Checking gh CLI authentication...\n")
-	case "pushing":
-		b.WriteString(p.SpinnerFrame + " Pushing branch to remote...\n")
-	case "creating":
-		b.WriteString(p.SpinnerFrame + " Creating pull request...\n")
-	default:
-		b.WriteString(p.SpinnerFrame + " Preparing...\n")
-	}
-
-	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
-	b.WriteString(HelpStyle.Render("esc cancel"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }

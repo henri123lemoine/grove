@@ -20,7 +20,6 @@ type KeyMap struct {
 	Open   key.Binding
 	New    key.Binding
 	Delete key.Binding
-	PR     key.Binding
 	Rename key.Binding
 	Fetch  key.Binding
 	Filter key.Binding
@@ -65,10 +64,6 @@ func DefaultKeyMap() KeyMap {
 		Delete: key.NewBinding(
 			key.WithKeys("d"),
 			key.WithHelp("d", "delete"),
-		),
-		PR: key.NewBinding(
-			key.WithKeys("p"),
-			key.WithHelp("p", "create PR"),
 		),
 		Rename: key.NewBinding(
 			key.WithKeys("r"),
@@ -159,12 +154,6 @@ func KeyMapFromConfig(cfg *config.KeysConfig) KeyMap {
 			key.WithHelp(cfg.Delete, "delete"),
 		)
 	}
-	if cfg.PR != "" {
-		km.PR = key.NewBinding(
-			key.WithKeys(parseKeys(cfg.PR)...),
-			key.WithHelp(cfg.PR, "create PR"),
-		)
-	}
 	if cfg.Rename != "" {
 		km.Rename = key.NewBinding(
 			key.WithKeys(parseKeys(cfg.Rename)...),
@@ -248,7 +237,6 @@ func (km KeyMap) HelpSections() []ui.HelpSection {
 			Bindings: []ui.HelpBinding{
 				{Keys: km.New.Help().Key, Desc: "New worktree"},
 				{Keys: km.Delete.Help().Key, Desc: "Delete worktree"},
-				{Keys: km.PR.Help().Key, Desc: "Create PR"},
 				{Keys: km.Rename.Help().Key, Desc: "Rename branch"},
 				{Keys: km.Fetch.Help().Key, Desc: "Fetch all remotes"},
 				{Keys: km.Prune.Help().Key, Desc: "Prune stale worktrees"},

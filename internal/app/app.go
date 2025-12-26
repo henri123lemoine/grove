@@ -28,7 +28,6 @@ const (
 	StateFilter
 	StateFetching
 	StateHelp
-	StatePR
 	StateRename
 	StateStash
 	StateSelectLayout
@@ -67,10 +66,6 @@ type Model struct {
 
 	// Filter
 	filterInput textinput.Model
-
-	// PR flow
-	prWorktree *git.Worktree
-	prState    string // "checking", "pushing", "creating"
 
 	// Rename flow
 	renameWorktree *git.Worktree
@@ -281,50 +276,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, loadWorktrees
 
-	case GHAuthCheckedMsg:
-		if msg.Err != nil {
-			m.err = msg.Err
-			m.state = StateList
-			m.prWorktree = nil
-			return m, nil
-		}
-		if !msg.Authenticated {
-			m.err = fmt.Errorf("gh CLI not authenticated. Run: gh auth login")
-			m.state = StateList
-			m.prWorktree = nil
-			return m, nil
-		}
-		// Auth OK, check if we need to push
-		m.prState = "pushing"
-		wt := m.prWorktree
-		if !git.HasUpstream(wt.Path, wt.Branch) && m.config.PR.AutoPush {
-			return m, pushBranch(wt.Path, wt.Branch, m.config.General.Remote)
-		}
-		// No push needed, create PR
-		m.prState = "creating"
-		return m, createPR(wt.Path, m.config.PR.Command)
-
-	case PushCompletedMsg:
-		if msg.Err != nil {
-			m.err = msg.Err
-			m.state = StateList
-			m.prWorktree = nil
-			return m, nil
-		}
-		// Push complete, create PR
-		m.prState = "creating"
-		return m, createPR(m.prWorktree.Path, m.config.PR.Command)
-
-	case PRCreatedMsg:
-		m.state = StateList
-		m.prWorktree = nil
-		if msg.Err != nil {
-			m.err = msg.Err
-		}
-		// Exit after PR creation to let user interact with gh
-		m.shouldQuit = true
-		return m, tea.Quit
-
 	case BranchRenamedMsg:
 		m.state = StateList
 		m.renameInput.Reset()
@@ -398,8 +349,6 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleFilterKeys(msg)
 	case StateHelp:
 		return m.handleHelpKeys(msg)
-	case StatePR:
-		return m.handlePRKeys(msg)
 	case StateRename:
 		return m.handleRenameKeys(msg)
 	case StateStash:
@@ -501,18 +450,6 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.deleteWorktree = wt
 			m.state = StateDelete
 			return m, checkSafety(wt.Path, wt.Branch, m.repo.DefaultBranch)
-		}
-	case key.Matches(msg, m.keys.PR):
-		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
-			wt := &m.filteredWorktrees[m.cursor]
-			if wt.IsDetached {
-				m.err = fmt.Errorf("cannot create PR from detached HEAD (checkout a branch first)")
-				return m, nil
-			}
-			m.prWorktree = wt
-			m.prState = "checking"
-			m.state = StatePR
-			return m, checkGHAuth
 		}
 	case key.Matches(msg, m.keys.Rename):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
@@ -760,18 +697,6 @@ func (m Model) handleFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-// handlePRKeys handles key presses in PR flow.
-func (m Model) handlePRKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyEsc:
-		m.state = StateList
-		m.prWorktree = nil
-		return m, nil
-	}
-	// PR flow is mostly automatic, just wait for messages
-	return m, nil
-}
-
 // handleRenameKeys handles key presses in rename flow.
 func (m Model) handleRenameKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
@@ -945,8 +870,6 @@ func (m Model) View() string {
 		BaseViewOffset:     m.baseViewOffset,
 		VisibleBranchCount: m.visibleBranchCount(),
 		CreateBranch:       m.createBranch,
-		PRWorktree:      m.prWorktree,
-		PRState:         m.prState,
 		RenameWorktree:  m.renameWorktree,
 		RenameInput:     m.renameInput.View(),
 		StashWorktree:   m.stashWorktree,
@@ -980,7 +903,6 @@ func (m Model) SelectedWorktree() *git.Worktree {
 func (m Model) isLoading() bool {
 	return m.loading ||
 		m.state == StateFetching ||
-		m.state == StatePR ||
 		(m.state == StateDelete && m.safetyInfo == nil)
 }
 
@@ -1046,25 +968,6 @@ func fetchAll() tea.Msg {
 func pruneWorktrees() tea.Msg {
 	count, err := git.Prune()
 	return PruneCompletedMsg{PrunedCount: count, Err: err}
-}
-
-func checkGHAuth() tea.Msg {
-	authenticated, err := git.CheckGHAuth()
-	return GHAuthCheckedMsg{Authenticated: authenticated, Err: err}
-}
-
-func pushBranch(worktreePath, branch, remote string) tea.Cmd {
-	return func() tea.Msg {
-		err := git.PushBranch(worktreePath, branch, remote)
-		return PushCompletedMsg{Err: err}
-	}
-}
-
-func createPR(worktreePath, command string) tea.Cmd {
-	return func() tea.Msg {
-		err := git.CreatePR(worktreePath, command)
-		return PRCreatedMsg{Err: err}
-	}
 }
 
 func renameBranch(worktreePath, oldName, newName string) tea.Cmd {

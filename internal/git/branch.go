@@ -179,6 +179,12 @@ func DeleteBranch(name string, force bool) error {
 	return err
 }
 
+// RenameBranch renames a branch within the given worktree.
+func RenameBranch(worktreePath, oldName, newName string) error {
+	_, err := runGitInDir(worktreePath, "branch", "-m", oldName, newName)
+	return err
+}
+
 // GetWorktreeBranches returns a set of branches that are checked out in worktrees.
 func GetWorktreeBranches() (map[string]bool, error) {
 	worktrees, err := List()

@@ -21,13 +21,6 @@ func TestDefaultConfig(t *testing.T) {
 		t.Error("Expected ExitAfterOpen to be true")
 	}
 
-	if cfg.PR.Command != "gh pr create" {
-		t.Errorf("Expected PR command 'gh pr create', got %q", cfg.PR.Command)
-	}
-
-	if cfg.PR.AutoPush != true {
-		t.Error("Expected AutoPush to be true")
-	}
 }
 
 func TestValidate(t *testing.T) {
@@ -114,14 +107,11 @@ func TestLoadPreservesDefaults(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.toml")
 
 	// Only specify some values - others should keep defaults
-	tomlContent := `[general]
+		tomlContent := `[general]
 default_base_branch = "develop"
 
 [open]
 command = "custom-command"
-
-[pr]
-command = "glab mr create"
 `
 	if err := os.WriteFile(configPath, []byte(tomlContent), 0644); err != nil {
 		t.Fatalf("Failed to write test config: %v", err)
@@ -141,10 +131,6 @@ command = "glab mr create"
 		t.Errorf("Expected command 'custom-command', got %q", cfg.Open.Command)
 	}
 
-	if cfg.PR.Command != "glab mr create" {
-		t.Errorf("Expected PR command 'glab mr create', got %q", cfg.PR.Command)
-	}
-
 	// Check that non-specified values keep defaults
 	if cfg.General.WorktreeDir != ".worktrees" {
 		t.Errorf("Expected default worktree dir '.worktrees', got %q", cfg.General.WorktreeDir)
@@ -153,10 +139,6 @@ command = "glab mr create"
 	// IMPORTANT: Check that boolean defaults are preserved when not specified
 	if cfg.Open.ExitAfterOpen != true {
 		t.Error("Expected ExitAfterOpen to remain true (default) when not specified in config")
-	}
-
-	if cfg.PR.AutoPush != true {
-		t.Error("Expected AutoPush to remain true (default) when not specified in config")
 	}
 
 	if cfg.Safety.ConfirmDirty != true {

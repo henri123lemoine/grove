@@ -88,8 +88,4 @@ worktree_dir = ".worktrees"
 command = "zellij action new-tab --name {branch_short} --cwd {path}"
 exit_after_open = true
 window_name_style = "short"
-
-[pr]
-command = "gh pr create"
-auto_push = true
 ```

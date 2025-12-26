@@ -45,13 +45,6 @@ window_name_style = "short"
 # Auto-stash dirty worktree before switching to another
 stash_on_switch = false
 
-[pr]
-# Command to create PR (e.g., "gh pr create" or "glab mr create")
-command = "gh pr create"
-
-# Auto-push branch if no upstream exists
-auto_push = true
-
 [worktree]
 # File patterns to copy to new worktrees (e.g., ".env*", ".vscode/**")
 copy_patterns = []
@@ -100,7 +93,6 @@ end = "end,G"
 open = "enter"
 new = "n"
 delete = "d"
-pr = "p"
 rename = "r"
 filter = "/"
 fetch = "f"

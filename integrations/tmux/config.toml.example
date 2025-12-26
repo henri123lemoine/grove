@@ -27,10 +27,6 @@ layout = "none"
 # Window name style: "short" (auth) or "full" (feature/auth)
 window_name_style = "short"
 
-[pr]
-command = "gh pr create"
-auto_push = true
-
 [worktree]
 # Copy these files to new worktrees
 # copy_patterns = [".env.local", ".vscode/settings.json"]
