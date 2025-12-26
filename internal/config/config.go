@@ -28,7 +28,7 @@ type GeneralConfig struct {
 	// Default base branch for new worktrees
 	DefaultBaseBranch string `toml:"default_base_branch"`
 
-	// Directory for worktrees (relative to repo root, or absolute)
+	// Directory for worktrees (relative to main worktree root)
 	WorktreeDir string `toml:"worktree_dir"`
 
 	// Default remote name (empty = auto-detect)
@@ -72,10 +72,12 @@ type DeleteConfig struct {
 
 // WorktreeConfig contains settings for worktree creation.
 type WorktreeConfig struct {
-	// File patterns to copy to new worktrees (e.g., ".env*", ".vscode/**")
+	// File patterns to copy to new worktrees (e.g., ".env*", ".vscode")
+	// Uses filepath.Glob syntax (*, ?, [abc]). Note: ** is not supported.
 	CopyPatterns []string `toml:"copy_patterns"`
 
-	// File patterns to ignore when copying
+	// File patterns to ignore when copying (matched against file/directory names)
+	// Uses filepath.Match syntax (*, ?, [abc]). Note: ** is not supported.
 	CopyIgnores []string `toml:"copy_ignores"`
 
 	// Commands to run after creating worktree
@@ -339,7 +341,7 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("[general]\n")
 	b.WriteString("# Default base branch for new worktrees\n")
 	b.WriteString("default_base_branch = \"main\"\n")
-	b.WriteString("# Directory for worktrees (relative to repo root)\n")
+	b.WriteString("# Directory for worktrees (relative to main worktree root)\n")
 	b.WriteString("worktree_dir = \".worktrees\"\n\n")
 
 	b.WriteString("[open]\n")
@@ -375,9 +377,11 @@ func generateDefaultConfigContent(env string) string {
 
 	b.WriteString("[worktree]\n")
 	b.WriteString("# File patterns to copy to new worktrees\n")
-	b.WriteString("# copy_patterns = [\".env*\", \".vscode/**\"]\n")
-	b.WriteString("# File patterns to ignore when copying\n")
-	b.WriteString("# copy_ignores = [\"node_modules/**\"]\n")
+	b.WriteString("# Uses filepath.Glob syntax (*, ?, [abc]). Note: ** is not supported.\n")
+	b.WriteString("# Directories are copied recursively.\n")
+	b.WriteString("# copy_patterns = [\".env*\", \".vscode\"]\n")
+	b.WriteString("# File patterns to ignore when copying (matched against names)\n")
+	b.WriteString("# copy_ignores = [\"node_modules\", \"*.log\"]\n")
 	b.WriteString("# Commands to run after creating worktree\n")
 	b.WriteString("# post_create_cmd = [\"npm install\"]\n\n")
 
