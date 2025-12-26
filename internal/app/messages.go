@@ -111,3 +111,11 @@ type DetailLoadedMsg struct {
 type UpstreamLoadedMsg struct {
 	Worktrees []git.Worktree
 }
+
+// WorktreesCachedMsg is sent when worktrees are loaded from cache.
+// FromCache indicates if this was a cache hit (needs background refresh).
+type WorktreesCachedMsg struct {
+	Worktrees []git.Worktree
+	FromCache bool
+	Err       error
+}

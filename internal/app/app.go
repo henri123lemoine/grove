@@ -180,7 +180,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case WorktreesLoadedMsg:
+	case WorktreesCachedMsg:
 		m.loading = false
 		if msg.Err != nil {
 			m.err = msg.Err
@@ -189,7 +189,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.worktrees = msg.Worktrees
 		m.applyFilter()
 		m.ensureCursorVisible()
-		// Trigger background fetch for upstream status
+		// If from cache, trigger background refresh + upstream fetch
+		if msg.FromCache {
+			return m, tea.Batch(refreshWorktrees, loadUpstreamStatus(m.worktrees))
+		}
+		// Fresh data - just fetch upstream
+		return m, loadUpstreamStatus(m.worktrees)
+
+	case WorktreesLoadedMsg:
+		// Background refresh completed (or direct load in tests)
+		m.loading = false
+		if msg.Err != nil {
+			// Non-fatal if we already have cached data
+			if len(m.worktrees) > 0 {
+				return m, nil
+			}
+			m.err = msg.Err
+			return m, nil
+		}
+		m.worktrees = msg.Worktrees
+		m.applyFilter()
+		m.ensureCursorVisible()
+		// Trigger upstream fetch for fresh data
 		return m, loadUpstreamStatus(m.worktrees)
 
 	case BranchesLoadedMsg:
@@ -1013,7 +1034,12 @@ func (m Model) isLoading() bool {
 // Commands
 
 func loadWorktrees() tea.Msg {
-	worktrees, err := git.List()
+	worktrees, fromCache, err := git.ListCached()
+	return WorktreesCachedMsg{Worktrees: worktrees, FromCache: fromCache, Err: err}
+}
+
+func refreshWorktrees() tea.Msg {
+	worktrees, err := git.ListAndCache()
 	return WorktreesLoadedMsg{Worktrees: worktrees, Err: err}
 }
 
