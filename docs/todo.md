@@ -10,12 +10,12 @@ These TODOs are to be prioritized roughly in the order they are in the page.
 - [x] **Symlinked worktrees**: Path comparisons may fail with symlinks
 - [x] **Worktree creation path conflicts**: Better error message when sanitized path already exists
 - [x] **Stash list shows global stashes**: May be confusing since `git stash` is repo-wide, not worktree-specific
-- [ ] Weird behaviour in case where a worktree is created with the precise name that another recent worktree was deleted for. possibly due to branch shenanigans
+- [x] Weird behaviour in case where a worktree is created with the precise name that another recent worktree was deleted for. possibly due to branch shenanigans
 
 ## Performance
 
-- [ ] **Combine GetLastCommit git calls**: Currently makes 3 separate git calls, could be one with `--format=%h|%s|%cr`
-- [ ] **Repository cache thread safety**: `currentRepo` global accessed without synchronization (low risk in practice)
+- [x] **Combine GetLastCommit git calls**: Currently makes 3 separate git calls, could be one with `--format=%h|%s|%cr` (already done)
+- [x] **Repository cache thread safety**: `currentRepo` global accessed without synchronization (low risk in practice)
 
 ## UX
 

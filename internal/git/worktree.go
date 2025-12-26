@@ -168,6 +168,9 @@ func Create(path, branch string, isNewBranch bool, baseBranch string) error {
 		return fmt.Errorf("path already exists: %s (try a different branch name or delete the existing directory)", path)
 	}
 
+	// Prune stale worktree entries to avoid conflicts with recently deleted worktrees
+	_, _ = runGit("worktree", "prune")
+
 	// Build command arguments
 	args := []string{"worktree", "add"}
 

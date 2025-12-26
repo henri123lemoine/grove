@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 )
 
 // Repo holds repository information.
@@ -30,11 +31,25 @@ type Repo struct {
 }
 
 // currentRepo caches the current repository info.
-var currentRepo *Repo
+var (
+	currentRepo *Repo
+	repoMu      sync.RWMutex
+)
 
 // GetRepo returns the current repository information.
 // It caches the result for subsequent calls.
 func GetRepo() (*Repo, error) {
+	repoMu.RLock()
+	if currentRepo != nil {
+		defer repoMu.RUnlock()
+		return currentRepo, nil
+	}
+	repoMu.RUnlock()
+
+	repoMu.Lock()
+	defer repoMu.Unlock()
+
+	// Double-check after acquiring write lock
 	if currentRepo != nil {
 		return currentRepo, nil
 	}
@@ -49,12 +64,16 @@ func GetRepo() (*Repo, error) {
 
 // ResetRepo clears the cached repository info.
 func ResetRepo() {
+	repoMu.Lock()
+	defer repoMu.Unlock()
 	currentRepo = nil
 }
 
 // UpdateDefaultBranch updates the repo's default branch using the specified remote.
 // This should be called after config is loaded if a specific remote is configured.
 func UpdateDefaultBranch(configuredRemote string) {
+	repoMu.Lock()
+	defer repoMu.Unlock()
 	if currentRepo == nil {
 		return
 	}
