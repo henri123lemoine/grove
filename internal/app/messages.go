@@ -98,3 +98,11 @@ type StashOperationCompletedMsg struct {
 	Operation string // "pop", "apply", or "drop"
 	Err       error
 }
+
+// DetailLoadedMsg is sent when detail info for a worktree is loaded.
+type DetailLoadedMsg struct {
+	Path              string
+	LastCommitHash    string
+	LastCommitMessage string
+	LastCommitTime    string
+}

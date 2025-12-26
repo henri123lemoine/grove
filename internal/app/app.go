@@ -362,6 +362,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.stashWorktree = nil
 		m.stashEntries = nil
 		return m, loadWorktrees
+
+	case DetailLoadedMsg:
+		// Update worktree with lazy-loaded detail info
+		for i := range m.worktrees {
+			if m.worktrees[i].Path == msg.Path {
+				m.worktrees[i].LastCommitHash = msg.LastCommitHash
+				m.worktrees[i].LastCommitMessage = msg.LastCommitMessage
+				m.worktrees[i].LastCommitTime = msg.LastCommitTime
+				break
+			}
+		}
+		for i := range m.filteredWorktrees {
+			if m.filteredWorktrees[i].Path == msg.Path {
+				m.filteredWorktrees[i].LastCommitHash = msg.LastCommitHash
+				m.filteredWorktrees[i].LastCommitMessage = msg.LastCommitMessage
+				m.filteredWorktrees[i].LastCommitTime = msg.LastCommitTime
+				break
+			}
+		}
+		return m, nil
 	}
 
 	return m, nil
@@ -520,6 +540,13 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.Detail):
 		m.showDetail = !m.showDetail
+		// Lazy-load detail info when toggling on
+		if m.showDetail && len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
+			wt := m.filteredWorktrees[m.cursor]
+			if wt.LastCommitHash == "" {
+				return m, loadWorktreeDetail(wt.Path)
+			}
+		}
 		return m, nil
 	case key.Matches(msg, m.keys.Prune):
 		return m, pruneWorktrees
@@ -1032,6 +1059,18 @@ func loadStashList(worktreePath string) tea.Cmd {
 	return func() tea.Msg {
 		entries, err := git.ListStashes(worktreePath)
 		return StashListLoadedMsg{Entries: entries, Err: err}
+	}
+}
+
+func loadWorktreeDetail(worktreePath string) tea.Cmd {
+	return func() tea.Msg {
+		hash, msg, time, _ := git.GetLastCommit(worktreePath)
+		return DetailLoadedMsg{
+			Path:              worktreePath,
+			LastCommitHash:    hash,
+			LastCommitMessage: msg,
+			LastCommitTime:    time,
+		}
 	}
 }
 

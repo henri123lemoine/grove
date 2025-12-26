@@ -91,9 +91,11 @@ func List() ([]Worktree, error) {
 	return worktrees, nil
 }
 
-// enrichWorktree populates a worktree with status information from git.
+// enrichWorktree populates a worktree with essential status information.
+// Only fetches what's needed for the list view. Commit info and safety
+// checks are fetched on-demand to minimize load time.
 func enrichWorktree(wt *Worktree, repo *Repo) {
-	// Get dirty status
+	// Get dirty status - essential for list view
 	wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(wt.Path)
 
 	// Get upstream status (skip for detached HEAD - no tracking branch)
@@ -101,23 +103,33 @@ func enrichWorktree(wt *Worktree, repo *Repo) {
 		wt.Ahead, wt.Behind, wt.HasUpstream, _ = GetUpstreamStatus(wt.Path, wt.Branch)
 	}
 
-	// Get last commit
-	wt.LastCommitHash, wt.LastCommitMessage, wt.LastCommitTime, _ = GetLastCommit(wt.Path)
+	// NOTE: Last commit, merged status, and unique commits are fetched
+	// on-demand via EnrichWorktreeDetail() to speed up initial load.
+}
 
-	// Get merged status and unique commits (skip for main worktree and detached HEAD)
-	if wt.Branch != "" && !wt.IsMain && !wt.IsDetached && repo != nil && repo.DefaultBranch != "" {
-		if wt.Branch != repo.DefaultBranch {
-			wt.IsMerged, _ = IsBranchMerged(wt.Branch, repo.DefaultBranch)
+// EnrichWorktreeDetail fetches additional info for detail panel display.
+// Called lazily when user opens detail view.
+func EnrichWorktreeDetail(wt *Worktree) {
+	if wt.LastCommitHash == "" {
+		wt.LastCommitHash, wt.LastCommitMessage, wt.LastCommitTime, _ = GetLastCommit(wt.Path)
+	}
+}
 
-			// Count unique commits (commits only on this branch)
-			commits, err := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
-			if err == nil {
-				wt.UniqueCommits = len(commits)
-			}
-		} else {
-			// Default branch is always considered "merged"
-			wt.IsMerged = true
+// EnrichWorktreeSafety fetches safety-related info for delete operations.
+// Called lazily when user initiates delete.
+func EnrichWorktreeSafety(wt *Worktree, defaultBranch string) {
+	if wt.Branch == "" || wt.IsMain || wt.IsDetached || defaultBranch == "" {
+		return
+	}
+
+	if wt.Branch != defaultBranch {
+		wt.IsMerged, _ = IsBranchMerged(wt.Branch, defaultBranch)
+		commits, err := GetUniqueCommits(wt.Branch, defaultBranch)
+		if err == nil {
+			wt.UniqueCommits = len(commits)
 		}
+	} else {
+		wt.IsMerged = true
 	}
 }
 

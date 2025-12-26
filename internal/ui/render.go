@@ -89,21 +89,21 @@ const (
 
 // ColumnWidths holds pre-calculated widths for table-like alignment.
 type ColumnWidths struct {
-	Path int // Max path length
+	Branch int // Max branch name length
 }
 
 // calculateColumnWidths computes column widths across all worktrees.
 func calculateColumnWidths(worktrees []git.Worktree) ColumnWidths {
 	var widths ColumnWidths
 	for _, wt := range worktrees {
-		pathLen := len(wt.ShortPath())
-		if pathLen > widths.Path {
-			widths.Path = pathLen
+		branchLen := len(wt.Branch)
+		if branchLen > widths.Branch {
+			widths.Branch = branchLen
 		}
 	}
-	// Cap path width to avoid extreme cases
-	if widths.Path > 40 {
-		widths.Path = 40
+	// Cap branch width to avoid extreme cases
+	if widths.Branch > 50 {
+		widths.Branch = 50
 	}
 	return widths
 }
@@ -247,11 +247,11 @@ func renderList(p RenderParams) string {
 	return wrapInBox(b.String(), p.Width, p.Height)
 }
 
-// renderWorktreeEntry renders a single worktree with full details.
+// renderWorktreeEntry renders a single worktree as a single line.
 func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.Config, colWidths ColumnWidths) string {
-	var lines []string
+	var parts []string
 
-	// Line 1: Cursor + Branch name
+	// Cursor indicator
 	cursor := "  "
 	if selected {
 		cursor = SelectedStyle.Render("› ")
@@ -259,40 +259,33 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 		cursor = CurrentStyle.Render("• ")
 	}
 
+	// Branch name (padded for alignment)
 	branch := wt.Branch
 	if branch == "" {
 		branch = "(detached)"
 	}
+	// Pad branch to align status columns
+	paddedBranch := branch
+	if len(branch) < colWidths.Branch {
+		paddedBranch = branch + strings.Repeat(" ", colWidths.Branch-len(branch))
+	}
 	if selected {
-		branch = SelectedStyle.Render(branch)
+		parts = append(parts, cursor+SelectedStyle.Render(paddedBranch))
 	} else {
-		branch = BranchStyle.Render(branch)
+		parts = append(parts, cursor+BranchStyle.Render(paddedBranch))
 	}
-	lines = append(lines, cursor+branch)
 
-	// Line 2: Path + Status (with table alignment)
-	indent := "    "
-	shortPath := wt.ShortPath()
-
-	// Pad path to align status columns
-	paddedPath := shortPath
-	if len(shortPath) < colWidths.Path {
-		paddedPath = shortPath + strings.Repeat(" ", colWidths.Path-len(shortPath))
-	}
-	path := PathStyle.Render(paddedPath)
-
-	// Build status string
+	// Status indicators (only essential info fetched on initial load)
 	var statusParts []string
 
 	// Dirty indicator
 	if wt.IsDirty {
-		statusParts = append(statusParts, DirtyStyle.Render(fmt.Sprintf("✗ %d modified", wt.DirtyFiles)))
+		statusParts = append(statusParts, DirtyStyle.Render(fmt.Sprintf("✗%d", wt.DirtyFiles)))
 	} else {
-		statusParts = append(statusParts, CleanStyle.Render("✓ clean"))
+		statusParts = append(statusParts, CleanStyle.Render("✓"))
 	}
 
 	// Ahead/Behind with arrows (respects config)
-	// Behind = warning (need to pull), Ahead = success (ready to push)
 	showUpstream := true
 	if cfg != nil {
 		showUpstream = cfg.UI.ShowUpstream
@@ -306,35 +299,13 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 		}
 	}
 
-	// Merged status
-	if wt.IsMerged && !wt.IsMain {
-		statusParts = append(statusParts, MergedStyle.Render("merged"))
-	}
+	// Merged status and unique commits are shown in detail panel (Tab) only
 
-	// Unique/unpushed commits
-	if wt.UniqueCommits > 0 {
-		statusParts = append(statusParts, UniqueStyle.Render(fmt.Sprintf("%d unpushed", wt.UniqueCommits)))
-	}
+	parts = append(parts, strings.Join(statusParts, " "))
 
-	status := strings.Join(statusParts, "  ")
-	lines = append(lines, indent+path+"  "+status)
+	// Commit info is shown in detail panel (Tab) only, not in list view
 
-	// Line 3: Last commit (respects config)
-	showCommits := true
-	if cfg != nil {
-		showCommits = cfg.UI.ShowCommits
-	}
-	if showCommits && wt.LastCommitHash != "" {
-		commitLine := indent + PathStyle.Render(wt.LastCommitHash)
-		msg := truncateMsg(wt.LastCommitMessage, CommitMsgMaxLen)
-		commitLine += " " + CommitStyle.Render(msg)
-		if wt.LastCommitTime != "" {
-			commitLine += " " + PathStyle.Render("("+wt.LastCommitTime+")")
-		}
-		lines = append(lines, commitLine)
-	}
-
-	return strings.Join(lines, "\n")
+	return strings.Join(parts, "  ")
 }
 
 // renderDetailPanel renders the expanded detail panel for a worktree.
