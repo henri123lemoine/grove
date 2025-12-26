@@ -190,7 +190,7 @@ Flow:
 5. Confirm path (default: `.worktrees/{branch-name}`)
 6. Create and optionally open
 
-**File copying**: Automatically copy files matching configured patterns (e.g., `.env*`, `.vscode/**`)
+**File copying**: Automatically copy files matching configured patterns (e.g., `.env*`)
 
 **Post-create hooks**: Run configured commands after creation (e.g., `npm install`)
 
@@ -326,8 +326,7 @@ grove/
 │   └── config/         # Configuration loading and validation
 ├── integrations/
 │   ├── tmux/           # TPM-compatible plugin
-│   ├── zellij/         # Zellij config examples
-│   └── vscode/         # VS Code extension
+│   └── zellij/         # Zellij config examples
 ├── docs/               # Documentation
 ├── Formula/            # Homebrew formula
 └── .github/workflows/  # CI/CD

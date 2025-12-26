@@ -124,21 +124,3 @@ func TestExpandTemplateZellij(t *testing.T) {
 		})
 	}
 }
-
-func TestExpandTemplateVSCode(t *testing.T) {
-	wt := &git.Worktree{
-		Path:   "/home/user/project/.worktrees/feature",
-		Branch: "feature/new-feature",
-	}
-	repo := &git.Repo{
-		Root: "/home/user/project",
-	}
-	cfg := config.DefaultConfig()
-
-	result := expandTemplate("code {path}", wt, repo, cfg)
-	expected := "code /home/user/project/.worktrees/feature"
-
-	if result != expected {
-		t.Errorf("expandTemplate() for VS Code = %q, want %q", result, expected)
-	}
-}

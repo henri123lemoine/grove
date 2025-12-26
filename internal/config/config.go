@@ -72,7 +72,7 @@ type DeleteConfig struct {
 
 // WorktreeConfig contains settings for worktree creation.
 type WorktreeConfig struct {
-	// File patterns to copy to new worktrees (e.g., ".env*", ".vscode")
+	// File patterns to copy to new worktrees (e.g., ".env*")
 	// Uses filepath.Glob syntax (*, ?, [abc]). Note: ** is not supported.
 	CopyPatterns []string `toml:"copy_patterns"`
 
@@ -379,7 +379,7 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("# File patterns to copy to new worktrees\n")
 	b.WriteString("# Uses filepath.Glob syntax (*, ?, [abc]). Note: ** is not supported.\n")
 	b.WriteString("# Directories are copied recursively.\n")
-	b.WriteString("# copy_patterns = [\".env*\", \".vscode\"]\n")
+	b.WriteString("# copy_patterns = [\".env*\"]\n")
 	b.WriteString("# File patterns to ignore when copying (matched against names)\n")
 	b.WriteString("# copy_ignores = [\"node_modules\", \"*.log\"]\n")
 	b.WriteString("# Commands to run after creating worktree\n")

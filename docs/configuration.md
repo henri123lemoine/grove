@@ -46,7 +46,7 @@ window_name_style = "short"
 stash_on_switch = false
 
 [worktree]
-# File patterns to copy to new worktrees (e.g., ".env*", ".vscode/**")
+# File patterns to copy to new worktrees (e.g., ".env*")
 copy_patterns = []
 
 # File patterns to ignore when copying
