@@ -72,8 +72,15 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutC
 			return false, err
 		}
 	case "name":
-		// Default behavior - let the command handle it
-		// Most commands like "tmux select-window -t :name || new-window" do this
+		// Check if a window with this name already exists
+		// If so, mark isNewWindow as false to skip layout application
+		windowName := wt.BranchShort()
+		if cfg.Open.WindowNameStyle == "full" {
+			windowName = wt.Branch
+		}
+		if windowExistsByName(windowName) {
+			isNewWindow = false
+		}
 	case "none":
 		// Always create new window
 	}
@@ -139,6 +146,27 @@ func findWindowByPath(path string) string {
 func switchToWindow(windowID string) error {
 	cmd := exec.Command("tmux", "select-window", "-t", windowID)
 	return cmd.Run()
+}
+
+// windowExistsByName checks if a tmux window with the given name exists.
+func windowExistsByName(name string) bool {
+	if os.Getenv("TMUX") == "" {
+		return false
+	}
+
+	// List all windows and check for matching name
+	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_name}")
+	output, err := cmd.Output()
+	if err != nil {
+		return false
+	}
+
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.TrimSpace(line) == name {
+			return true
+		}
+	}
+	return false
 }
 
 // applyLayout applies the configured layout after creating a new window (legacy system).
