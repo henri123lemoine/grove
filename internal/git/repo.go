@@ -52,6 +52,17 @@ func ResetRepo() {
 	currentRepo = nil
 }
 
+// UpdateDefaultBranch updates the repo's default branch using the specified remote.
+// This should be called after config is loaded if a specific remote is configured.
+func UpdateDefaultBranch(configuredRemote string) {
+	if currentRepo == nil {
+		return
+	}
+	if configuredRemote != "" {
+		currentRepo.DefaultBranch = detectDefaultBranchWithRemote(configuredRemote)
+	}
+}
+
 // detectRepo detects the current Git repository.
 func detectRepo() (*Repo, error) {
 	// Get the git common directory (the actual .git dir, not worktree's .git file)

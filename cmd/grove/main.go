@@ -68,6 +68,11 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Update default branch detection if a specific remote is configured
+	if cfg.General.Remote != "" {
+		git.UpdateDefaultBranch(cfg.General.Remote)
+	}
+
 	// Create and run the application
 	model := app.New(cfg, repo)
 	p := tea.NewProgram(model,
