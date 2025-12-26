@@ -127,15 +127,15 @@ func findWindowByPath(path string) string {
 		return ""
 	}
 
-	// Find window with matching path
-	absPath, _ := filepath.Abs(path)
+	// Find window with matching path (resolve symlinks for reliable comparison)
+	resolvedPath := resolvePath(path)
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) == 2 {
 			windowID := parts[0]
-			panePath := parts[1]
+			panePath := resolvePath(parts[1])
 			// Check for exact match or if pane is within the worktree
-			if panePath == absPath || strings.HasPrefix(panePath, absPath+string(filepath.Separator)) {
+			if panePath == resolvedPath || strings.HasPrefix(panePath, resolvedPath+string(filepath.Separator)) {
 				return windowID
 			}
 		}
@@ -421,16 +421,17 @@ func findTmuxWindowsForPath(path string) []string {
 		return nil
 	}
 
-	absPath, _ := filepath.Abs(path)
+	// Resolve symlinks for reliable comparison
+	resolvedPath := resolvePath(path)
 	windowsMap := make(map[string]bool)
 
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) == 2 {
 			windowID := parts[0]
-			panePath := parts[1]
+			panePath := resolvePath(parts[1])
 			// Check for exact match or if pane is within the worktree
-			if panePath == absPath || strings.HasPrefix(panePath, absPath+string(filepath.Separator)) {
+			if panePath == resolvedPath || strings.HasPrefix(panePath, resolvedPath+string(filepath.Separator)) {
 				windowsMap[windowID] = true
 			}
 		}
@@ -485,4 +486,18 @@ func closeZellijTab(tabIndex string) error {
 	}
 	closeCmd := exec.Command("zellij", "action", "close-tab")
 	return closeCmd.Run()
+}
+
+// resolvePath returns the absolute path with symlinks resolved.
+// Falls back to absolute path if symlink resolution fails.
+func resolvePath(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return abs
+	}
+	return resolved
 }

@@ -68,14 +68,16 @@ func List() ([]Worktree, error) {
 		wt := &worktrees[i]
 
 		// Check if this is the current worktree (fast, no git call)
+		// Use resolvePath to handle symlinks correctly
 		if cwd != "" {
-			wtPath, _ := filepath.Abs(wt.Path)
-			cwdPath, _ := filepath.Abs(cwd)
+			wtPath := resolvePath(wt.Path)
+			cwdPath := resolvePath(cwd)
 			wt.IsCurrent = wtPath == cwdPath || strings.HasPrefix(cwdPath, wtPath+string(filepath.Separator))
 		}
 
 		// Check if this is the main worktree (fast, no git call)
-		wt.IsMain = wt.Path == repo.MainWorktreeRoot || (repo.IsBare && i == 0)
+		// Use resolvePath to handle symlinks correctly
+		wt.IsMain = resolvePath(wt.Path) == resolvePath(repo.MainWorktreeRoot) || (repo.IsBare && i == 0)
 
 		// Parallelize git operations
 		wg.Add(1)
@@ -161,6 +163,11 @@ func parseWorktreeList(output string) []Worktree {
 
 // Create creates a new worktree.
 func Create(path, branch string, isNewBranch bool, baseBranch string) error {
+	// Check if path already exists
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("path already exists: %s (try a different branch name or delete the existing directory)", path)
+	}
+
 	// Build command arguments
 	args := []string{"worktree", "add"}
 
@@ -469,4 +476,18 @@ func runHookCommand(worktreePath, cmdStr string, timeoutSeconds int) error {
 		return fmt.Errorf("post-create command failed: %s: %w", cmdStr, err)
 	}
 	return nil
+}
+
+// resolvePath returns the absolute path with symlinks resolved.
+// Falls back to absolute path if symlink resolution fails.
+func resolvePath(path string) string {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return path
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		return abs
+	}
+	return resolved
 }

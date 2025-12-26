@@ -7,9 +7,9 @@ These TODOs are to be prioritized roughly in the order they are in the page.
 ## Edge Cases
 
 - [x] **Empty WorktreeDir**: Creates paths like `/repo//branch-name`
-- [ ] **Symlinked worktrees**: Path comparisons may fail with symlinks
-- [ ] **Worktree creation path conflicts**: Better error message when sanitized path already exists
-- [ ] **Stash list shows global stashes**: May be confusing since `git stash` is repo-wide, not worktree-specific
+- [x] **Symlinked worktrees**: Path comparisons may fail with symlinks
+- [x] **Worktree creation path conflicts**: Better error message when sanitized path already exists
+- [x] **Stash list shows global stashes**: May be confusing since `git stash` is repo-wide, not worktree-specific
 - [ ] Weird behaviour in case where a worktree is created with the precise name that another recent worktree was deleted for. possibly due to branch shenanigans
 
 ## Performance

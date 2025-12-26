@@ -675,7 +675,8 @@ func renderStash(p RenderParams) string {
 		return wrapInBox(b.String(), p.Width, p.Height)
 	}
 
-	b.WriteString("Worktree: " + PathStyle.Render(p.StashWorktree.Branch) + "\n\n")
+	b.WriteString("Worktree: " + PathStyle.Render(p.StashWorktree.Branch) + "\n")
+	b.WriteString(HelpStyle.Render("(stashes are shared across all worktrees)") + "\n\n")
 
 	if len(p.StashEntries) == 0 {
 		b.WriteString(PathStyle.Render("No stashes found.\n"))
