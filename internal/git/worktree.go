@@ -101,6 +101,22 @@ func enrichWorktree(wt *Worktree, repo *Repo) {
 
 	// Get last commit
 	wt.LastCommitHash, wt.LastCommitMessage, wt.LastCommitTime, _ = GetLastCommit(wt.Path)
+
+	// Get merged status and unique commits (skip for main worktree and detached HEAD)
+	if wt.Branch != "" && !wt.IsMain && !wt.IsDetached && repo != nil && repo.DefaultBranch != "" {
+		if wt.Branch != repo.DefaultBranch {
+			wt.IsMerged, _ = IsBranchMerged(wt.Branch, repo.DefaultBranch)
+
+			// Count unique commits (commits only on this branch)
+			commits, err := GetUniqueCommits(wt.Branch, repo.DefaultBranch)
+			if err == nil {
+				wt.UniqueCommits = len(commits)
+			}
+		} else {
+			// Default branch is always considered "merged"
+			wt.IsMerged = true
+		}
+	}
 }
 
 // parseWorktreeList parses the porcelain output of git worktree list.
