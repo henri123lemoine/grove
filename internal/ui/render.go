@@ -238,22 +238,18 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 	}
 
 	// Ahead/Behind with arrows (respects config)
+	// Behind = warning (need to pull), Ahead = success (ready to push)
 	showUpstream := true
 	if cfg != nil {
 		showUpstream = cfg.UI.ShowUpstream
 	}
-	if showUpstream && (wt.Ahead > 0 || wt.Behind > 0) {
-		abStr := ""
+	if showUpstream {
 		if wt.Behind > 0 {
-			abStr += fmt.Sprintf("↓%d", wt.Behind)
+			statusParts = append(statusParts, BehindStyle.Render(fmt.Sprintf("↓%d", wt.Behind)))
 		}
 		if wt.Ahead > 0 {
-			if abStr != "" {
-				abStr += " "
-			}
-			abStr += fmt.Sprintf("↑%d", wt.Ahead)
+			statusParts = append(statusParts, AheadStyle.Render(fmt.Sprintf("↑%d", wt.Ahead)))
 		}
-		statusParts = append(statusParts, AheadStyle.Render(abStr))
 	}
 
 	// Merged status
@@ -295,25 +291,48 @@ func renderDetailPanel(wt git.Worktree, width int) string {
 	var b strings.Builder
 	indent := "      "
 
+	// Calculate adaptive panel width: use available width minus indent and margins
+	// Minimum 40, maximum 70, or width - 12 (indent + borders + padding)
+	panelWidth := width - 12
+	if panelWidth < 40 {
+		panelWidth = 40
+	}
+	if panelWidth > 70 {
+		panelWidth = 70
+	}
+	innerWidth := panelWidth - 2 // Account for borders
+
+	// Helper to render a row with proper padding and truncation
+	renderRow := func(label, value string, style func(string) string) string {
+		maxValueLen := innerWidth - len(label) - 2 // -2 for spaces
+		if len(value) > maxValueLen {
+			value = value[:maxValueLen-3] + "..."
+		}
+		padding := innerWidth - len(label) - len(value)
+		if padding < 0 {
+			padding = 0
+		}
+		return indent + DividerStyle.Render("│") + " " + PathStyle.Render(label) + style(value) +
+			strings.Repeat(" ", padding) + DividerStyle.Render("│") + "\n"
+	}
+
+	identity := func(s string) string { return s }
+
 	b.WriteString("\n")
-	b.WriteString(indent + DividerStyle.Render("┌"+strings.Repeat("─", 50)+"┐") + "\n")
+	b.WriteString(indent + DividerStyle.Render("┌"+strings.Repeat("─", panelWidth)+"┐") + "\n")
 
 	// Full path
-	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Path:     ") + wt.Path)
-	b.WriteString(strings.Repeat(" ", max(0, 49-len(wt.Path)-10)) + DividerStyle.Render("│") + "\n")
+	b.WriteString(renderRow("Path:     ", wt.Path, identity))
 
 	// Branch
-	branchLine := fmt.Sprintf("Branch:   %s", wt.Branch)
-	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Branch:   ") + wt.Branch)
-	b.WriteString(strings.Repeat(" ", max(0, 49-len(branchLine))) + DividerStyle.Render("│") + "\n")
+	b.WriteString(renderRow("Branch:   ", wt.Branch, identity))
 
 	// Status
 	statusStr := "clean"
 	if wt.IsDirty {
 		statusStr = fmt.Sprintf("%d uncommitted files", wt.DirtyFiles)
 	}
-	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Status:   ") + statusStr)
-	b.WriteString(strings.Repeat(" ", max(0, 49-len(statusStr)-10)) + DividerStyle.Render("│") + "\n")
+	b.WriteString(renderRow("Status:   ", statusStr, identity))
 
 	// Upstream
 	upstreamStr := "no upstream"
@@ -324,8 +343,7 @@ func renderDetailPanel(wt git.Worktree, width int) string {
 			upstreamStr = "up to date"
 		}
 	}
-	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Upstream: ") + upstreamStr)
-	b.WriteString(strings.Repeat(" ", max(0, 49-len(upstreamStr)-10)) + DividerStyle.Render("│") + "\n")
+	b.WriteString(renderRow("Upstream: ", upstreamStr, identity))
 
 	// Merged status
 	mergedStr := "no"
@@ -335,17 +353,15 @@ func renderDetailPanel(wt git.Worktree, width int) string {
 	if wt.IsMain {
 		mergedStr = "main worktree"
 	}
-	b.WriteString(indent + DividerStyle.Render("│") + " " + PathStyle.Render("Merged:   ") + mergedStr)
-	b.WriteString(strings.Repeat(" ", max(0, 49-len(mergedStr)-10)) + DividerStyle.Render("│") + "\n")
+	b.WriteString(renderRow("Merged:   ", mergedStr, identity))
 
 	// Unique commits
 	if wt.UniqueCommits > 0 {
 		uniqueStr := fmt.Sprintf("%d commits only on this branch", wt.UniqueCommits)
-		b.WriteString(indent + DividerStyle.Render("│") + " " + DangerStyle.Render("Unique:   ") + DangerStyle.Render(uniqueStr))
-		b.WriteString(strings.Repeat(" ", max(0, 49-len(uniqueStr)-10)) + DividerStyle.Render("│") + "\n")
+		b.WriteString(renderRow("Unique:   ", uniqueStr, func(s string) string { return DangerStyle.Render(s) }))
 	}
 
-	b.WriteString(indent + DividerStyle.Render("└"+strings.Repeat("─", 50)+"┘"))
+	b.WriteString(indent + DividerStyle.Render("└"+strings.Repeat("─", panelWidth)+"┘"))
 
 	return b.String()
 }

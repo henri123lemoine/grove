@@ -88,6 +88,7 @@ var (
 	DangerStyle      lipgloss.Style
 	MergedStyle      lipgloss.Style
 	AheadStyle       lipgloss.Style
+	BehindStyle      lipgloss.Style
 	UniqueStyle      lipgloss.Style
 	StashStyle       lipgloss.Style
 	PathStyle        lipgloss.Style
@@ -182,7 +183,10 @@ func InitTheme(theme string) {
 		Foreground(ColorSuccess)
 
 	AheadStyle = lipgloss.NewStyle().
-		Foreground(ColorMuted)
+		Foreground(ColorSuccess)
+
+	BehindStyle = lipgloss.NewStyle().
+		Foreground(ColorWarning)
 
 	UniqueStyle = lipgloss.NewStyle().
 		Foreground(ColorDanger)

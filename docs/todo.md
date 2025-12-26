@@ -19,9 +19,9 @@ These TODOs are to be prioritized roughly in the order they are in the page.
 
 ## UX
 
-- [ ] Instead of the info being packed to the right, it should look more like a table (with all the times being aligned nicely)
-- [ ] All that has colour-appropriate stuff (like the commit LOC changes) should be coloured appropriately
-- [ ] **Adaptive detail panel width**: Currently fixed at 50 chars
+- [ ] Instead of the info being packed to the right, it should look more like a table (with all the times being aligned nicely) - requires two-pass render
+- [x] All that has colour-appropriate stuff (like the commit LOC changes) should be coloured appropriately - ahead/behind now use distinct colors
+- [x] **Adaptive detail panel width**: Currently fixed at 50 chars
 - [ ] **Consistent commit message truncation**: Different lengths in different views (60, 50, 47 chars)
 - [ ] **Config warnings display**: Currently printed to stderr before TUI starts, disappear immediately
 
