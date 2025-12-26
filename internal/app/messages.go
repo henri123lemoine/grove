@@ -106,3 +106,8 @@ type DetailLoadedMsg struct {
 	LastCommitMessage string
 	LastCommitTime    string
 }
+
+// UpstreamLoadedMsg is sent when upstream status is loaded for all worktrees.
+type UpstreamLoadedMsg struct {
+	Worktrees []git.Worktree
+}

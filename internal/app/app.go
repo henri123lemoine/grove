@@ -189,7 +189,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.worktrees = msg.Worktrees
 		m.applyFilter()
 		m.ensureCursorVisible()
-		return m, nil
+		// Trigger background fetch for upstream status
+		return m, loadUpstreamStatus(m.worktrees)
 
 	case BranchesLoadedMsg:
 		if msg.Err != nil {
@@ -379,6 +380,31 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.filteredWorktrees[i].LastCommitMessage = msg.LastCommitMessage
 				m.filteredWorktrees[i].LastCommitTime = msg.LastCommitTime
 				break
+			}
+		}
+		return m, nil
+
+	case UpstreamLoadedMsg:
+		// Update worktrees with background-loaded upstream status
+		for i := range m.worktrees {
+			for _, updated := range msg.Worktrees {
+				if m.worktrees[i].Path == updated.Path {
+					m.worktrees[i].Ahead = updated.Ahead
+					m.worktrees[i].Behind = updated.Behind
+					m.worktrees[i].HasUpstream = updated.HasUpstream
+					break
+				}
+			}
+		}
+		// Also update filtered list
+		for i := range m.filteredWorktrees {
+			for _, updated := range msg.Worktrees {
+				if m.filteredWorktrees[i].Path == updated.Path {
+					m.filteredWorktrees[i].Ahead = updated.Ahead
+					m.filteredWorktrees[i].Behind = updated.Behind
+					m.filteredWorktrees[i].HasUpstream = updated.HasUpstream
+					break
+				}
 			}
 		}
 		return m, nil
@@ -1071,6 +1097,16 @@ func loadWorktreeDetail(worktreePath string) tea.Cmd {
 			LastCommitMessage: msg,
 			LastCommitTime:    time,
 		}
+	}
+}
+
+func loadUpstreamStatus(worktrees []git.Worktree) tea.Cmd {
+	return func() tea.Msg {
+		// Make a copy to avoid race conditions
+		wtCopy := make([]git.Worktree, len(worktrees))
+		copy(wtCopy, worktrees)
+		git.EnrichWorktreesUpstream(wtCopy)
+		return UpstreamLoadedMsg{Worktrees: wtCopy}
 	}
 }
 

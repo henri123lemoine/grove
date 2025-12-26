@@ -92,19 +92,30 @@ func List() ([]Worktree, error) {
 }
 
 // enrichWorktree populates a worktree with essential status information.
-// Only fetches what's needed for the list view. Commit info and safety
-// checks are fetched on-demand to minimize load time.
-func enrichWorktree(wt *Worktree, repo *Repo) {
-	// Get dirty status - essential for list view
+// Only fetches dirty status for maximum speed. Other info is lazy-loaded.
+func enrichWorktree(wt *Worktree, _ *Repo) {
+	// Get dirty status - essential for list view (1 git command)
 	wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(wt.Path)
 
-	// Get upstream status (skip for detached HEAD - no tracking branch)
-	if wt.Branch != "" && !wt.IsDetached {
-		wt.Ahead, wt.Behind, wt.HasUpstream, _ = GetUpstreamStatus(wt.Path, wt.Branch)
-	}
+	// NOTE: Upstream, last commit, merged status, and unique commits are
+	// fetched on-demand to speed up initial load.
+}
 
-	// NOTE: Last commit, merged status, and unique commits are fetched
-	// on-demand via EnrichWorktreeDetail() to speed up initial load.
+// EnrichWorktreesUpstream fetches ahead/behind status for all worktrees.
+// Run this in background after initial load for progressive enhancement.
+func EnrichWorktreesUpstream(worktrees []Worktree) {
+	var wg sync.WaitGroup
+	for i := range worktrees {
+		wt := &worktrees[i]
+		if wt.Branch != "" && !wt.IsDetached {
+			wg.Add(1)
+			go func(wt *Worktree) {
+				defer wg.Done()
+				wt.Ahead, wt.Behind, wt.HasUpstream, _ = GetUpstreamStatus(wt.Path, wt.Branch)
+			}(wt)
+		}
+	}
+	wg.Wait()
 }
 
 // EnrichWorktreeDetail fetches additional info for detail panel display.
