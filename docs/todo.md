@@ -1,6 +1,5 @@
 # TODO
 
-- [ ] Instead of the info being packed to the right, it should look more like a table (with all the times being aligned nicely) - requires two-pass render
 - Prune
     - [ ] **Confirmation before prune**: Prune runs immediately without confirmation
     - [ ] **Visual feedback after prune**: Show how many entries were pruned

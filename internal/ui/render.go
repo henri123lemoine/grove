@@ -87,6 +87,27 @@ const (
 	StashMsgMaxLen  = 50 // Max length for stash messages
 )
 
+// ColumnWidths holds pre-calculated widths for table-like alignment.
+type ColumnWidths struct {
+	Path int // Max path length
+}
+
+// calculateColumnWidths computes column widths across all worktrees.
+func calculateColumnWidths(worktrees []git.Worktree) ColumnWidths {
+	var widths ColumnWidths
+	for _, wt := range worktrees {
+		pathLen := len(wt.ShortPath())
+		if pathLen > widths.Path {
+			widths.Path = pathLen
+		}
+	}
+	// Cap path width to avoid extreme cases
+	if widths.Path > 40 {
+		widths.Path = 40
+	}
+	return widths
+}
+
 // truncateMsg truncates a message to maxLen, adding "..." if needed.
 func truncateMsg(msg string, maxLen int) string {
 	if len(msg) > maxLen {
@@ -177,6 +198,9 @@ func renderList(p RenderParams) string {
 		return wrapInBox(b.String(), p.Width, p.Height)
 	}
 
+	// Calculate column widths for table alignment
+	colWidths := calculateColumnWidths(p.Worktrees)
+
 	// Calculate visible range
 	startIdx := p.ViewOffset
 	endIdx := p.ViewOffset + p.VisibleCount
@@ -196,7 +220,7 @@ func renderList(p RenderParams) string {
 	for i := startIdx; i < endIdx; i++ {
 		wt := p.Worktrees[i]
 		isSelected := i == p.Cursor
-		b.WriteString(renderWorktreeEntry(wt, isSelected, contentWidth, p.Config))
+		b.WriteString(renderWorktreeEntry(wt, isSelected, contentWidth, p.Config, colWidths))
 		// Show detail panel for selected item if enabled
 		if isSelected && p.ShowDetail {
 			b.WriteString(renderDetailPanel(wt, contentWidth))
@@ -224,7 +248,7 @@ func renderList(p RenderParams) string {
 }
 
 // renderWorktreeEntry renders a single worktree with full details.
-func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.Config) string {
+func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.Config, colWidths ColumnWidths) string {
 	var lines []string
 
 	// Line 1: Cursor + Branch name
@@ -246,9 +270,16 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 	}
 	lines = append(lines, cursor+branch)
 
-	// Line 2: Path + Status
+	// Line 2: Path + Status (with table alignment)
 	indent := "    "
-	path := PathStyle.Render(wt.ShortPath())
+	shortPath := wt.ShortPath()
+
+	// Pad path to align status columns
+	paddedPath := shortPath
+	if len(shortPath) < colWidths.Path {
+		paddedPath = shortPath + strings.Repeat(" ", colWidths.Path-len(shortPath))
+	}
+	path := PathStyle.Render(paddedPath)
 
 	// Build status string
 	var statusParts []string
@@ -596,6 +627,9 @@ func renderFilter(p RenderParams) string {
 	if len(p.Worktrees) == 0 {
 		b.WriteString("\n" + PathStyle.Render("No matches found.") + "\n")
 	} else {
+		// Calculate column widths for table alignment
+		colWidths := calculateColumnWidths(p.Worktrees)
+
 		// Calculate visible range
 		startIdx := p.ViewOffset
 		endIdx := p.ViewOffset + p.VisibleCount
@@ -613,7 +647,7 @@ func renderFilter(p RenderParams) string {
 
 		for i := startIdx; i < endIdx; i++ {
 			wt := p.Worktrees[i]
-			b.WriteString(renderWorktreeEntry(wt, i == p.Cursor, contentWidth, p.Config))
+			b.WriteString(renderWorktreeEntry(wt, i == p.Cursor, contentWidth, p.Config, colWidths))
 			if i < endIdx-1 {
 				b.WriteString("\n")
 			}
