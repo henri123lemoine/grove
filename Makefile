@@ -1,4 +1,4 @@
-.PHONY: build run clean install test lint fmt check setup-hooks
+.PHONY: build run clean install test test-quick lint fmt fmt-check check setup-hooks
 
 # Build the binary
 build:
@@ -28,6 +28,13 @@ deps:
 fmt:
 	go fmt ./...
 
+# Fail if gofmt would change files (fast pre-commit check)
+fmt-check:
+	@files="$$(git ls-files '*.go')"; \
+	if [ -z "$$files" ]; then exit 0; fi; \
+	unformatted="$$(gofmt -l $$files)"; \
+	test -z "$$unformatted" || (echo "$$unformatted"; exit 1)
+
 # Run linter (install with: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest)
 lint:
 	golangci-lint run
@@ -36,13 +43,23 @@ lint:
 test:
 	go test -v -race ./...
 
+# Quick sanity tests for pre-commit (aim to keep under ~1s)
+test-quick:
+	go test ./internal/config -run TestDefaultConfig
+
 # Pre-push check: build + test + lint (run before pushing)
 # This mirrors exactly what CI runs
 check: build test lint
 	@echo "✓ All checks passed"
 
-# Setup git hooks for pre-push validation
+# Setup git hooks for pre-commit sanity checks and pre-push validation
 setup-hooks:
+	@echo '#!/bin/sh' > .git/hooks/pre-commit
+	@echo 'echo "Running pre-commit checks..."' >> .git/hooks/pre-commit
+	@echo 'make fmt-check || exit 1' >> .git/hooks/pre-commit
+	@echo 'make test-quick || exit 1' >> .git/hooks/pre-commit
+	@chmod +x .git/hooks/pre-commit
+	@echo "✓ Pre-commit hook installed"
 	@echo '#!/bin/sh' > .git/hooks/pre-push
 	@echo 'echo "Running pre-push checks..."' >> .git/hooks/pre-push
 	@echo 'make check || exit 1' >> .git/hooks/pre-push

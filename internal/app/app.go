@@ -52,11 +52,11 @@ type Model struct {
 	err     error
 
 	// Create flow
-	createInput      textinput.Model
-	createBranch     string
-	createIsNew      bool
-	baseBranchIndex  int
-	baseViewOffset   int
+	createInput     textinput.Model
+	createBranch    string
+	createIsNew     bool
+	baseBranchIndex int
+	baseViewOffset  int
 
 	// Delete flow
 	deleteWorktree      *git.Worktree
@@ -847,34 +847,34 @@ func (m *Model) applyFilter() {
 // View renders the UI.
 func (m Model) View() string {
 	return ui.Render(ui.RenderParams{
-		State:           int(m.state),
-		Worktrees:       m.filteredWorktrees,
-		Cursor:          m.cursor,
-		ViewOffset:      m.viewOffset,
-		VisibleCount:    m.visibleItemCount(),
-		Width:           m.width,
-		Height:          m.height,
-		Loading:         m.loading,
-		Err:             m.err,
-		Repo:            m.repo,
-		Config:          m.config,
-		FilterInput:     m.filterInput.View(),
-		FilterValue:     m.filterInput.Value(),
-		CreateInput:     m.createInput.View(),
-		DeleteWorktree:  m.deleteWorktree,
-		SafetyInfo:      m.safetyInfo,
-		DeleteInput:     m.deleteInput.View(),
-		ShowDetail:      m.showDetail,
-		Branches:           m.branches,
-		BaseBranchIndex:    m.baseBranchIndex,
-		BaseViewOffset:     m.baseViewOffset,
-		VisibleBranchCount: m.visibleBranchCount(),
-		CreateBranch:       m.createBranch,
-		RenameWorktree:  m.renameWorktree,
-		RenameInput:     m.renameInput.View(),
-		StashWorktree:   m.stashWorktree,
-		StashEntries:    m.stashEntries,
-		StashCursor:     m.stashCursor,
+		State:               int(m.state),
+		Worktrees:           m.filteredWorktrees,
+		Cursor:              m.cursor,
+		ViewOffset:          m.viewOffset,
+		VisibleCount:        m.visibleItemCount(),
+		Width:               m.width,
+		Height:              m.height,
+		Loading:             m.loading,
+		Err:                 m.err,
+		Repo:                m.repo,
+		Config:              m.config,
+		FilterInput:         m.filterInput.View(),
+		FilterValue:         m.filterInput.Value(),
+		CreateInput:         m.createInput.View(),
+		DeleteWorktree:      m.deleteWorktree,
+		SafetyInfo:          m.safetyInfo,
+		DeleteInput:         m.deleteInput.View(),
+		ShowDetail:          m.showDetail,
+		Branches:            m.branches,
+		BaseBranchIndex:     m.baseBranchIndex,
+		BaseViewOffset:      m.baseViewOffset,
+		VisibleBranchCount:  m.visibleBranchCount(),
+		CreateBranch:        m.createBranch,
+		RenameWorktree:      m.renameWorktree,
+		RenameInput:         m.renameInput.View(),
+		StashWorktree:       m.stashWorktree,
+		StashEntries:        m.stashEntries,
+		StashCursor:         m.stashCursor,
 		LayoutWorktree:      m.layoutWorktree,
 		LayoutCursor:        m.layoutCursor,
 		SpinnerFrame:        m.spinner.View(),

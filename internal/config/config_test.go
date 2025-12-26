@@ -107,7 +107,7 @@ func TestLoadPreservesDefaults(t *testing.T) {
 	configPath := filepath.Join(tmpDir, "config.toml")
 
 	// Only specify some values - others should keep defaults
-		tomlContent := `[general]
+	tomlContent := `[general]
 default_base_branch = "develop"
 
 [open]

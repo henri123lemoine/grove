@@ -38,40 +38,40 @@ type HelpSection struct {
 
 // RenderParams contains all parameters needed for rendering.
 type RenderParams struct {
-	State              int
-	Worktrees          []git.Worktree
-	Cursor             int
-	ViewOffset         int
-	VisibleCount       int
-	Width              int
-	Height             int
-	Loading            bool
-	Err                error
-	Repo               *git.Repo
-	Config             *config.Config
-	FilterInput        string
-	FilterValue        string
-	CreateInput        string
-	DeleteWorktree     *git.Worktree
-	SafetyInfo         *git.SafetyInfo
-	DeleteInput        string
-	Branches           []git.Branch
-	BaseBranchIndex    int
-	BaseViewOffset     int
-	VisibleBranchCount int
-	CreateBranch       string
-	ShowDetail         bool
-	RenameWorktree     *git.Worktree
-	RenameInput        string
-	StashWorktree      *git.Worktree
-	StashEntries       []git.StashEntry
-	StashCursor        int
-	LayoutWorktree            *git.Worktree
-	LayoutCursor              int
-	SpinnerFrame              string
-	HelpSections              []HelpSection
-	PendingWindowsCount       int
-	PendingWindowsName        string // "window" for tmux, "tab" for zellij
+	State               int
+	Worktrees           []git.Worktree
+	Cursor              int
+	ViewOffset          int
+	VisibleCount        int
+	Width               int
+	Height              int
+	Loading             bool
+	Err                 error
+	Repo                *git.Repo
+	Config              *config.Config
+	FilterInput         string
+	FilterValue         string
+	CreateInput         string
+	DeleteWorktree      *git.Worktree
+	SafetyInfo          *git.SafetyInfo
+	DeleteInput         string
+	Branches            []git.Branch
+	BaseBranchIndex     int
+	BaseViewOffset      int
+	VisibleBranchCount  int
+	CreateBranch        string
+	ShowDetail          bool
+	RenameWorktree      *git.Worktree
+	RenameInput         string
+	StashWorktree       *git.Worktree
+	StashEntries        []git.StashEntry
+	StashCursor         int
+	LayoutWorktree      *git.Worktree
+	LayoutCursor        int
+	SpinnerFrame        string
+	HelpSections        []HelpSection
+	PendingWindowsCount int
+	PendingWindowsName  string // "window" for tmux, "tab" for zellij
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.

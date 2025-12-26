@@ -327,10 +327,10 @@ func TestSanitizePath(t *testing.T) {
 
 func TestKeyMapFromConfig(t *testing.T) {
 	keysConfig := &config.KeysConfig{
-		Up:     "up,k,w",
-		Down:   "down,j,s",
-		Open:   "enter,o",
-		Quit:   "q,ctrl+c,esc",
+		Up:   "up,k,w",
+		Down: "down,j,s",
+		Open: "enter,o",
+		Quit: "q,ctrl+c,esc",
 	}
 
 	km := KeyMapFromConfig(keysConfig)

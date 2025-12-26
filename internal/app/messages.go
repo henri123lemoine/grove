@@ -40,7 +40,7 @@ type WorktreeDeletedMsg struct {
 
 // WorktreeOpenedMsg is sent when a worktree is opened.
 type WorktreeOpenedMsg struct {
-	Err       error
+	Err         error
 	IsNewWindow bool
 }
 
