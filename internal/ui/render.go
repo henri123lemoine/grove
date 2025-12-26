@@ -505,9 +505,15 @@ func renderDelete(p RenderParams) string {
 			}
 			b.WriteString(fmt.Sprintf("  %s %s\n", PathStyle.Render(commit.Hash), msg))
 		}
-		b.WriteString("\nType 'delete' to confirm:\n")
-		b.WriteString(p.DeleteInput + "\n")
-		b.WriteString("\n" + HelpStyle.Render("esc cancel"))
+		// Check if config requires typing "delete" for unique commits
+		requireTyping := p.Config != nil && p.Config.Safety.RequireTypingForUnique
+		if requireTyping {
+			b.WriteString("\nType 'delete' to confirm:\n")
+			b.WriteString(p.DeleteInput + "\n")
+			b.WriteString("\n" + HelpStyle.Render("esc cancel"))
+		} else {
+			b.WriteString("\n" + HelpStyle.Render("y confirm • n cancel"))
+		}
 	}
 
 	return wrapInBox(b.String(), p.Width, p.Height)
@@ -533,7 +539,7 @@ func renderDeleteConfirmCloseWindow(p RenderParams) string {
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
 
 	b.WriteString(fmt.Sprintf("Found %d %s with this worktree path.\n\n", p.PendingWindowsCount, windowNamePlural))
-	b.WriteString("Would you like to close " + SelectedStyle.Render(fmt.Sprintf("%s", windowNamePlural)) + "?\n\n")
+	b.WriteString("Would you like to close " + SelectedStyle.Render(windowNamePlural) + "?\n\n")
 	b.WriteString(HelpStyle.Render("y close • n keep • esc cancel"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)

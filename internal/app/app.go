@@ -197,8 +197,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.safetyInfo = msg.Info
-		// Focus delete input if danger level
-		if msg.Info.Level == git.SafetyLevelDanger {
+
+		// Check if we can skip confirmation based on config
+		skipConfirmation := false
+		if msg.Info.Level == git.SafetyLevelSafe {
+			// Safe level - check if any confirmation is needed at all
+			// Only dirty worktrees need ConfirmDirty, only unmerged need ConfirmUnmerged
+			// SafetyLevelSafe means clean and merged, so no confirmation needed
+			skipConfirmation = true
+		} else if msg.Info.Level == git.SafetyLevelWarning {
+			// Warning level - check config flags
+			needsDirtyConfirm := msg.Info.HasUncommittedChanges && m.config.Safety.ConfirmDirty
+			needsUnmergedConfirm := !msg.Info.IsMerged && m.config.Safety.ConfirmUnmerged
+			needsUnpushedConfirm := msg.Info.HasUnpushedCommits // Always warn about unpushed
+			skipConfirmation = !needsDirtyConfirm && !needsUnmergedConfirm && !needsUnpushedConfirm
+		}
+
+		if skipConfirmation {
+			// Proceed with deletion immediately
+			force := msg.Info.HasUncommittedChanges
+			path := m.deleteWorktree.Path
+			m.state = StateList
+			m.deleteWorktree = nil
+			m.safetyInfo = nil
+			return m, deleteWorktree(path, force)
+		}
+
+		// Focus delete input only if danger level AND config requires typing
+		if msg.Info.Level == git.SafetyLevelDanger && m.config.Safety.RequireTypingForUnique {
 			m.deleteInput.Focus()
 			return m, textinput.Blink
 		}
@@ -371,6 +397,11 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 		// Account for header (2 lines) and box padding
 		headerHeight := 3
 
+		// Account for "↑ X more above" indicator if scrolled
+		if m.viewOffset > 0 {
+			headerHeight++
+		}
+
 		// Row height depends on whether commits are shown
 		rowHeight := 2
 		if m.config != nil && m.config.UI.ShowCommits {
@@ -542,7 +573,17 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.createIsNew = !git.BranchExists(branchName)
 		if m.createIsNew {
 			m.state = StateCreateSelectBase
+			// Pre-select the configured default base branch if it exists in the list
 			m.baseBranchIndex = 0
+			if m.config.General.DefaultBaseBranch != "" {
+				for i, b := range m.branches {
+					if b.Name == m.config.General.DefaultBaseBranch {
+						m.baseBranchIndex = i
+						break
+					}
+				}
+			}
+			m.ensureBaseBranchVisible()
 			return m, nil
 		}
 		// Branch exists, create worktree
@@ -590,6 +631,10 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	// Determine if we should require typing "delete" based on config
+	requireTyping := m.safetyInfo.Level == git.SafetyLevelDanger &&
+		m.config.Safety.RequireTypingForUnique
+
 	switch msg.Type {
 	case tea.KeyEsc:
 		m.state = StateList
@@ -599,7 +644,7 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case tea.KeyEnter:
 		// Check if we need to type "delete"
-		if m.safetyInfo.Level == git.SafetyLevelDanger {
+		if requireTyping {
 			if m.deleteInput.Value() != "delete" {
 				return m, nil
 			}
@@ -609,14 +654,14 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, deleteWorktree(m.deleteWorktree.Path, force)
 	}
 
-	// If danger level, handle typing
-	if m.safetyInfo.Level == git.SafetyLevelDanger {
+	// If requiring typing, handle text input
+	if requireTyping {
 		var cmd tea.Cmd
 		m.deleteInput, cmd = m.deleteInput.Update(msg)
 		return m, cmd
 	}
 
-	// For safe/warning, y confirms, n cancels
+	// For safe/warning (and danger without RequireTypingForUnique), y confirms, n cancels
 	if msg.String() == "y" || msg.String() == "Y" {
 		force := m.safetyInfo.HasUncommittedChanges
 		return m, deleteWorktree(m.deleteWorktree.Path, force)
