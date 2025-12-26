@@ -82,11 +82,12 @@ type Model struct {
 	layoutCursor   int
 
 	// UI
-	width      int
-	height     int
-	keys       KeyMap
-	showDetail bool
-	spinner    spinner.Model
+	width          int
+	height         int
+	keys           KeyMap
+	showDetail     bool
+	spinner        spinner.Model
+	configWarnings []string
 
 	// Exit behavior
 	shouldQuit       bool
@@ -95,7 +96,7 @@ type Model struct {
 }
 
 // New creates a new Model.
-func New(cfg *config.Config, repo *git.Repo) Model {
+func New(cfg *config.Config, repo *git.Repo, configWarnings []string) Model {
 	// Create text inputs
 	createInput := textinput.New()
 	createInput.Placeholder = "branch-name"
@@ -119,16 +120,17 @@ func New(cfg *config.Config, repo *git.Repo) Model {
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return Model{
-		config:      cfg,
-		repo:        repo,
-		keys:        KeyMapFromConfig(&cfg.Keys),
-		createInput: createInput,
-		deleteInput: deleteInput,
-		filterInput: filterInput,
-		renameInput: renameInput,
-		spinner:     s,
-		state:       StateList,
-		loading:     true,
+		config:         cfg,
+		repo:           repo,
+		keys:           KeyMapFromConfig(&cfg.Keys),
+		createInput:    createInput,
+		deleteInput:    deleteInput,
+		filterInput:    filterInput,
+		renameInput:    renameInput,
+		spinner:        s,
+		state:          StateList,
+		loading:        true,
+		configWarnings: configWarnings,
 	}
 }
 
@@ -151,6 +153,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Clear config warnings on first keypress
+		if len(m.configWarnings) > 0 {
+			m.configWarnings = nil
+			return m, nil
+		}
+
 		// Handle quit globally
 		if key.Matches(msg, m.keys.Quit) && m.state == StateList {
 			m.shouldQuit = true
@@ -923,6 +931,7 @@ func (m Model) View() string {
 		HelpSections:        m.keys.HelpSections(),
 		PendingWindowsCount: len(m.pendingWindowsClose),
 		PendingWindowsName:  exec.GetMultiplexer().WindowName(),
+		ConfigWarnings:      m.configWarnings,
 	})
 }
 

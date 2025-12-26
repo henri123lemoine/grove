@@ -324,6 +324,15 @@ func CopyFiles(sourceDir, destDir string, patterns, ignores []string) error {
 // isIgnored checks if a path matches any ignore pattern.
 func isIgnored(path string, ignores []string) bool {
 	for _, pattern := range ignores {
+		// Handle ** patterns (e.g., node_modules/**)
+		if strings.HasSuffix(pattern, "/**") {
+			prefix := strings.TrimSuffix(pattern, "/**")
+			if path == prefix || strings.HasPrefix(path, prefix+string(filepath.Separator)) {
+				return true
+			}
+		}
+
+		// Standard filepath.Match against full path
 		matched, err := filepath.Match(pattern, path)
 		if err == nil && matched {
 			return true

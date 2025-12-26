@@ -72,6 +72,7 @@ type RenderParams struct {
 	HelpSections        []HelpSection
 	PendingWindowsCount int
 	PendingWindowsName  string // "window" for tmux, "tab" for zellij
+	ConfigWarnings      []string
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -79,6 +80,20 @@ const MinWidth = 30
 
 // MinHeight is the absolute minimum terminal height we try to support.
 const MinHeight = 8
+
+// Message truncation lengths (consistent across all views)
+const (
+	CommitMsgMaxLen = 50 // Max length for commit messages
+	StashMsgMaxLen  = 50 // Max length for stash messages
+)
+
+// truncateMsg truncates a message to maxLen, adding "..." if needed.
+func truncateMsg(msg string, maxLen int) string {
+	if len(msg) > maxLen {
+		return msg[:maxLen-3] + "..."
+	}
+	return msg
+}
 
 // Render renders the full UI.
 func Render(p RenderParams) string {
@@ -140,6 +155,14 @@ func renderList(p RenderParams) string {
 	// Error message if any
 	if p.Err != nil {
 		b.WriteString(ErrorStyle.Render("Error: "+p.Err.Error()) + "\n\n")
+	}
+
+	// Config warnings (shown until dismissed)
+	if len(p.ConfigWarnings) > 0 {
+		for _, w := range p.ConfigWarnings {
+			b.WriteString(DirtyStyle.Render("⚠ "+w) + "\n")
+		}
+		b.WriteString(HelpStyle.Render("(press any key to dismiss)") + "\n\n")
 	}
 
 	// Loading state
@@ -272,10 +295,7 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 	}
 	if showCommits && wt.LastCommitHash != "" {
 		commitLine := indent + PathStyle.Render(wt.LastCommitHash)
-		msg := wt.LastCommitMessage
-		if len(msg) > 60 {
-			msg = msg[:57] + "..."
-		}
+		msg := truncateMsg(wt.LastCommitMessage, CommitMsgMaxLen)
 		commitLine += " " + CommitStyle.Render(msg)
 		if wt.LastCommitTime != "" {
 			commitLine += " " + PathStyle.Render("("+wt.LastCommitTime+")")
@@ -521,10 +541,7 @@ func renderDelete(p RenderParams) string {
 				b.WriteString(fmt.Sprintf("  ... and %d more\n", len(info.UniqueCommits)-5))
 				break
 			}
-			msg := commit.Message
-			if len(msg) > 50 {
-				msg = msg[:47] + "..."
-			}
+			msg := truncateMsg(commit.Message, CommitMsgMaxLen)
 			b.WriteString(fmt.Sprintf("  %s %s\n", PathStyle.Render(commit.Hash), msg))
 		}
 		// Check if config requires typing "delete" for unique commits
@@ -703,10 +720,7 @@ func renderStash(p RenderParams) string {
 				cursor = SelectedStyle.Render("› ")
 			}
 			stashRef := fmt.Sprintf("stash@{%d}", entry.Index)
-			msg := entry.Message
-			if len(msg) > 50 {
-				msg = msg[:47] + "..."
-			}
+			msg := truncateMsg(entry.Message, StashMsgMaxLen)
 			if i == p.StashCursor {
 				b.WriteString(cursor + SelectedStyle.Render(stashRef) + " " + msg + "\n")
 			} else {

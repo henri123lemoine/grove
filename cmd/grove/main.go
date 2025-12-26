@@ -43,12 +43,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Show config validation warnings
-	if warnings := cfg.Validate(); len(warnings) > 0 {
-		for _, w := range warnings {
-			fmt.Fprintf(os.Stderr, "Config warning: %s\n", w)
-		}
-	}
+	// Get config validation warnings (will be displayed in TUI)
+	configWarnings := cfg.Validate()
 
 	// Initialize theme based on config
 	ui.InitTheme(cfg.UI.Theme)
@@ -74,7 +70,7 @@ func main() {
 	}
 
 	// Create and run the application
-	model := app.New(cfg, repo)
+	model := app.New(cfg, repo, configWarnings)
 	p := tea.NewProgram(model,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),

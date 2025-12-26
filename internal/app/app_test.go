@@ -19,7 +19,7 @@ func TestNewModel(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 
 	if model.state != StateList {
 		t.Errorf("Expected initial state StateList, got %d", model.state)
@@ -47,7 +47,7 @@ func TestStateTransitions(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 	model.loading = false
 	model.worktrees = []git.Worktree{
 		{Path: "/test/repo", Branch: "main", IsMain: true},
@@ -109,7 +109,7 @@ func TestCursorNavigation(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 	model.loading = false
 	model.worktrees = []git.Worktree{
 		{Path: "/test/repo", Branch: "main"},
@@ -186,7 +186,7 @@ func TestFuzzyFilter(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 	model.loading = false
 	model.worktrees = []git.Worktree{
 		{Path: "/test/repo", Branch: "main"},
@@ -230,7 +230,7 @@ func TestWindowSizeMessage(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 
 	newModel, _ := model.Update(tea.WindowSizeMsg{Width: 120, Height: 40})
 	m := newModel.(Model)
@@ -252,7 +252,7 @@ func TestWorktreesLoadedMessage(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 	model.loading = true
 
 	worktrees := []git.Worktree{
@@ -281,7 +281,7 @@ func TestDeleteFlowCannotDeleteMain(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 	model.loading = false
 	model.worktrees = []git.Worktree{
 		{Path: "/test/repo", Branch: "main", IsMain: true},
@@ -358,7 +358,7 @@ func TestDetailToggle(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 	model.loading = false
 	model.worktrees = []git.Worktree{
 		{Path: "/test/repo", Branch: "main"},
@@ -395,7 +395,7 @@ func TestShouldQuit(t *testing.T) {
 		DefaultBranch:    "main",
 	}
 
-	model := New(cfg, repo)
+	model := New(cfg, repo, nil)
 	model.loading = false
 	model.worktrees = []git.Worktree{}
 	model.filteredWorktrees = model.worktrees
