@@ -6,7 +6,7 @@ These TODOs are to be prioritized roughly in the order they are in the page.
 
 ## Edge Cases
 
-- [ ] **Empty WorktreeDir**: Creates paths like `/repo//branch-name`
+- [x] **Empty WorktreeDir**: Creates paths like `/repo//branch-name`
 - [ ] **Symlinked worktrees**: Path comparisons may fail with symlinks
 - [ ] **Worktree creation path conflicts**: Better error message when sanitized path already exists
 - [ ] **Stash list shows global stashes**: May be confusing since `git stash` is repo-wide, not worktree-specific

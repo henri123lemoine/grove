@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -969,10 +970,10 @@ func checkSafety(path, branch, defaultBranch string) tea.Cmd {
 func createWorktree(cfg *config.Config, branch string, isNew bool, baseBranch string) tea.Cmd {
 	return func() tea.Msg {
 		repo, _ := git.GetRepo()
-		path := cfg.General.WorktreeDir + "/" + sanitizePath(branch)
+		path := filepath.Join(cfg.General.WorktreeDir, sanitizePath(branch))
 		if repo != nil {
 			// Always use MainWorktreeRoot so worktrees are created at the project root
-			path = repo.MainWorktreeRoot + "/" + cfg.General.WorktreeDir + "/" + sanitizePath(branch)
+			path = filepath.Join(repo.MainWorktreeRoot, cfg.General.WorktreeDir, sanitizePath(branch))
 		}
 		err := git.Create(path, branch, isNew, baseBranch)
 		return WorktreeCreatedMsg{Path: path, Branch: branch, Err: err}
