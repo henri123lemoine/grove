@@ -159,23 +159,31 @@ func GetUniqueCommits(branch, defaultBranch string) ([]CommitInfo, error) {
 
 // IsBranchMerged checks if a branch is merged into another branch.
 func IsBranchMerged(branch, intoBranch string) (bool, error) {
-	// git branch --merged {intoBranch}
-	output, err := runGit("branch", "--merged", intoBranch)
+	merged, err := GetMergedBranches(intoBranch)
 	if err != nil {
 		return false, err
 	}
+	return merged[branch], nil
+}
 
-	// Check if our branch is in the list
+// GetMergedBranches returns a set of all branches merged into the given branch.
+// Call this once and reuse the result to avoid repeated git calls.
+func GetMergedBranches(intoBranch string) (map[string]bool, error) {
+	output, err := runGit("branch", "--merged", intoBranch)
+	if err != nil {
+		return nil, err
+	}
+
+	merged := make(map[string]bool)
 	for _, line := range strings.Split(output, "\n") {
-		// Remove leading spaces and asterisk
 		name := strings.TrimSpace(line)
 		name = strings.TrimPrefix(name, "* ")
-		if name == branch {
-			return true, nil
+		if name != "" {
+			merged[name] = true
 		}
 	}
 
-	return false, nil
+	return merged, nil
 }
 
 // String returns a human-readable string for the safety level.

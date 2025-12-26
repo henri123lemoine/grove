@@ -25,17 +25,11 @@ func GetDirtyStatus(worktreePath string) (isDirty bool, count int, err error) {
 // GetUpstreamStatus returns how many commits a branch is ahead/behind its upstream.
 // Returns hasUpstream=false if no upstream tracking is configured.
 func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, hasUpstream bool, err error) {
-	// Check if there's an upstream
-	_, err = runGitInDir(worktreePath, "rev-parse", "--abbrev-ref", branch+"@{upstream}")
-	if err != nil {
-		// No upstream configured
-		return 0, 0, false, nil
-	}
-
-	// Get count
+	// Try to get count directly - if no upstream, this will fail
 	output, err := runGitInDir(worktreePath, "rev-list", "--left-right", "--count", branch+"@{upstream}..."+branch)
 	if err != nil {
-		return 0, 0, true, nil
+		// No upstream configured (or other error)
+		return 0, 0, false, nil
 	}
 
 	parts := strings.Fields(strings.TrimSpace(output))
@@ -51,26 +45,23 @@ func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, hasUpstr
 
 // GetLastCommit returns information about the last commit in a worktree.
 func GetLastCommit(worktreePath string) (hash, message, relTime string, err error) {
-	// Get hash
-	hashOut, err := runGitInDir(worktreePath, "log", "-1", "--format=%h")
+	// Get all info in one call using a delimiter unlikely to appear in commit messages
+	const delim = "\x00"
+	output, err := runGitInDir(worktreePath, "log", "-1", "--format=%h"+delim+"%s"+delim+"%cr")
 	if err != nil {
 		return "", "", "", err
 	}
-	hash = strings.TrimSpace(hashOut)
 
-	// Get subject
-	msgOut, err := runGitInDir(worktreePath, "log", "-1", "--format=%s")
-	if err != nil {
-		return hash, "", "", nil
+	parts := strings.Split(strings.TrimSpace(output), delim)
+	if len(parts) >= 1 {
+		hash = parts[0]
 	}
-	message = strings.TrimSpace(msgOut)
-
-	// Get relative time
-	timeOut, err := runGitInDir(worktreePath, "log", "-1", "--format=%cr")
-	if err != nil {
-		return hash, message, "", nil
+	if len(parts) >= 2 {
+		message = parts[1]
 	}
-	relTime = strings.TrimSpace(timeOut)
+	if len(parts) >= 3 {
+		relTime = parts[2]
+	}
 
 	return hash, message, relTime, nil
 }
