@@ -128,6 +128,12 @@ func renderList(p RenderParams) string {
 		repoName = filepath.Base(p.Repo.MainWorktreeRoot)
 	}
 	header := HeaderStyle.Render("WORKTREES") + "  " + PathStyle.Render(repoName)
+
+	// Show active filter indicator
+	if p.FilterValue != "" {
+		header += "  " + DirtyStyle.Render("[filter: "+p.FilterValue+"]")
+	}
+
 	b.WriteString(header + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 

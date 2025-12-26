@@ -548,24 +548,19 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.createBranch = branchName
 
 		// Check if this branch already has a worktree
-		for _, b := range m.branches {
-			if b.Name == branchName && b.IsWorktree {
-				// Find and open the existing worktree
-				for i := range m.worktrees {
-					if m.worktrees[i].Branch == branchName {
-						m.state = StateList
-						m.createInput.Reset()
-						// Find current worktree for stash_on_switch
-						var currentWt *git.Worktree
-						for j := range m.worktrees {
-							if m.worktrees[j].IsCurrent {
-								currentWt = &m.worktrees[j]
-								break
-							}
-						}
-						return m, openWorktree(m.config, &m.worktrees[i], currentWt, nil)
+		for i := range m.worktrees {
+			if m.worktrees[i].Branch == branchName {
+				m.state = StateList
+				m.createInput.Reset()
+				// Find current worktree for stash_on_switch
+				var currentWt *git.Worktree
+				for j := range m.worktrees {
+					if m.worktrees[j].IsCurrent {
+						currentWt = &m.worktrees[j]
+						break
 					}
 				}
+				return m, openWorktree(m.config, &m.worktrees[i], currentWt, nil)
 			}
 		}
 
@@ -857,8 +852,9 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 type worktreeSource []git.Worktree
 
 func (w worktreeSource) String(i int) string {
-	// Match against both branch name and path for better results
-	return w[i].Branch + " " + w[i].Path
+	// Match against both branch name and short path for better results
+	// Using ShortPath avoids matching user home directory in absolute paths
+	return w[i].Branch + " " + w[i].ShortPath()
 }
 
 func (w worktreeSource) Len() int {

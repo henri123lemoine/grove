@@ -73,13 +73,15 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutC
 		}
 	case "name":
 		// Check if a window with this name already exists
-		// If so, mark isNewWindow as false to skip layout application
 		windowName := wt.BranchShort()
 		if cfg.Open.WindowNameStyle == "full" {
 			windowName = wt.Branch
 		}
-		if windowExistsByName(windowName) {
-			isNewWindow = false
+		windowID := findWindowByName(windowName)
+		if windowID != "" {
+			// Switch to existing window
+			err := switchToWindow(windowID)
+			return false, err
 		}
 	case "none":
 		// Always create new window
@@ -148,25 +150,26 @@ func switchToWindow(windowID string) error {
 	return cmd.Run()
 }
 
-// windowExistsByName checks if a tmux window with the given name exists.
-func windowExistsByName(name string) bool {
+// findWindowByName finds a tmux window by name and returns its ID.
+func findWindowByName(name string) string {
 	if os.Getenv("TMUX") == "" {
-		return false
+		return ""
 	}
 
-	// List all windows and check for matching name
-	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_name}")
+	// List all windows with their IDs and names
+	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_id} #{window_name}")
 	output, err := cmd.Output()
 	if err != nil {
-		return false
+		return ""
 	}
 
 	for _, line := range strings.Split(string(output), "\n") {
-		if strings.TrimSpace(line) == name {
-			return true
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) == 2 && strings.TrimSpace(parts[1]) == name {
+			return parts[0]
 		}
 	}
-	return false
+	return ""
 }
 
 // applyLayout applies the configured layout after creating a new window (legacy system).
