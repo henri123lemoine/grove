@@ -15,6 +15,7 @@ const (
 	StateCreate
 	StateCreateSelectBase
 	StateDelete
+	StateDeleteConfirmCloseWindow
 	StateFilter
 	StateFetching
 	StateHelp
@@ -68,10 +69,12 @@ type RenderParams struct {
 	StashWorktree      *git.Worktree
 	StashEntries       []git.StashEntry
 	StashCursor        int
-	LayoutWorktree     *git.Worktree
-	LayoutCursor       int
-	SpinnerFrame       string
-	HelpSections       []HelpSection
+	LayoutWorktree            *git.Worktree
+	LayoutCursor              int
+	SpinnerFrame              string
+	HelpSections              []HelpSection
+	PendingWindowsCount       int
+	PendingWindowsName        string // "window" for tmux, "tab" for zellij
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -98,6 +101,8 @@ func Render(p RenderParams) string {
 		return renderSelectBase(p)
 	case StateDelete:
 		return renderDelete(p)
+	case StateDeleteConfirmCloseWindow:
+		return renderDeleteConfirmCloseWindow(p)
 	case StateFilter:
 		return renderFilter(p)
 	case StateFetching:
@@ -509,6 +514,32 @@ func renderDelete(p RenderParams) string {
 		b.WriteString(p.DeleteInput + "\n")
 		b.WriteString("\n" + HelpStyle.Render("esc cancel"))
 	}
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderDeleteConfirmCloseWindow renders the close window confirmation after delete.
+func renderDeleteConfirmCloseWindow(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	// Use the correct term (window/tab) based on multiplexer
+	windowName := p.PendingWindowsName
+	if windowName == "" {
+		windowName = "window"
+	}
+	windowNamePlural := windowName + "s"
+	if p.PendingWindowsCount == 1 {
+		windowNamePlural = windowName
+	}
+
+	headerText := fmt.Sprintf("CLOSE %s?", strings.ToUpper(windowName))
+	b.WriteString(HeaderStyle.Render(headerText) + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	b.WriteString(fmt.Sprintf("Found %d %s with this worktree path.\n\n", p.PendingWindowsCount, windowNamePlural))
+	b.WriteString("Would you like to close " + SelectedStyle.Render(fmt.Sprintf("%s", windowNamePlural)) + "?\n\n")
+	b.WriteString(HelpStyle.Render("y close • n keep • esc cancel"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }

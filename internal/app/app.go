@@ -24,6 +24,7 @@ const (
 	StateCreate
 	StateCreateSelectBase
 	StateDelete
+	StateDeleteConfirmCloseWindow
 	StateFilter
 	StateFetching
 	StateHelp
@@ -59,9 +60,10 @@ type Model struct {
 	baseViewOffset   int
 
 	// Delete flow
-	deleteWorktree *git.Worktree
-	safetyInfo     *git.SafetyInfo
-	deleteInput    textinput.Model
+	deleteWorktree      *git.Worktree
+	safetyInfo          *git.SafetyInfo
+	deleteInput         textinput.Model
+	pendingWindowsClose []string // Window/tab IDs to potentially close after delete
 
 	// Filter
 	filterInput textinput.Model
@@ -225,7 +227,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case WorktreeDeletedMsg:
 		if msg.Err != nil {
 			m.err = msg.Err
+			m.state = StateList
+			m.deleteInput.Reset()
+			m.deleteWorktree = nil
+			m.safetyInfo = nil
+			return m, loadWorktrees
 		}
+
+		// Check for multiplexer windows/tabs to close
+		if exec.InMultiplexer() && m.config.Delete.CloseWindowAction != "never" {
+			windows := exec.FindWindowsForPath(msg.Path)
+			if len(windows) > 0 {
+				switch m.config.Delete.CloseWindowAction {
+				case "auto":
+					// Close windows/tabs immediately
+					for _, w := range windows {
+						_ = exec.CloseWindow(w)
+					}
+				case "ask":
+					// Store windows and ask user
+					m.pendingWindowsClose = windows
+					m.state = StateDeleteConfirmCloseWindow
+					m.deleteInput.Reset()
+					m.deleteWorktree = nil
+					m.safetyInfo = nil
+					return m, loadWorktrees
+				}
+			}
+		}
+
 		m.state = StateList
 		m.deleteInput.Reset()
 		m.deleteWorktree = nil
@@ -362,6 +392,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleSelectBaseKeys(msg)
 	case StateDelete:
 		return m.handleDeleteKeys(msg)
+	case StateDeleteConfirmCloseWindow:
+		return m.handleDeleteConfirmCloseWindowKeys(msg)
 	case StateFilter:
 		return m.handleFilterKeys(msg)
 	case StateHelp:
@@ -663,6 +695,35 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleDeleteConfirmCloseWindowKeys handles key presses in the close window confirmation.
+func (m Model) handleDeleteConfirmCloseWindowKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Cancel - don't close windows
+		m.state = StateList
+		m.pendingWindowsClose = nil
+		return m, nil
+	}
+
+	if msg.String() == "y" || msg.String() == "Y" {
+		// Close the windows/tabs
+		for _, w := range m.pendingWindowsClose {
+			_ = exec.CloseWindow(w)
+		}
+		m.state = StateList
+		m.pendingWindowsClose = nil
+		return m, nil
+	}
+	if msg.String() == "n" || msg.String() == "N" {
+		// Don't close windows
+		m.state = StateList
+		m.pendingWindowsClose = nil
+		return m, nil
+	}
+
+	return m, nil
+}
+
 // handleFilterKeys handles key presses in filter mode.
 func (m Model) handleFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
@@ -891,10 +952,12 @@ func (m Model) View() string {
 		StashWorktree:   m.stashWorktree,
 		StashEntries:    m.stashEntries,
 		StashCursor:     m.stashCursor,
-		LayoutWorktree:  m.layoutWorktree,
-		LayoutCursor:    m.layoutCursor,
-		SpinnerFrame:    m.spinner.View(),
-		HelpSections:    m.keys.HelpSections(),
+		LayoutWorktree:      m.layoutWorktree,
+		LayoutCursor:        m.layoutCursor,
+		SpinnerFrame:        m.spinner.View(),
+		HelpSections:        m.keys.HelpSections(),
+		PendingWindowsCount: len(m.pendingWindowsClose),
+		PendingWindowsName:  exec.GetMultiplexer().WindowName(),
 	})
 }
 

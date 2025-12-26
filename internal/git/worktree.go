@@ -192,7 +192,48 @@ func Remove(path string, force bool) error {
 		return fmt.Errorf("failed to remove worktree: %w", err)
 	}
 
+	// Clean up empty parent directories (rmdir-like behavior)
+	cleanupEmptyParentDirs(path)
+
 	return nil
+}
+
+// cleanupEmptyParentDirs removes empty parent directories up the tree,
+// stopping at .worktrees or any non-empty directory.
+func cleanupEmptyParentDirs(path string) {
+	repo, err := GetRepo()
+	if err != nil {
+		return
+	}
+
+	worktreesDir := filepath.Join(repo.MainWorktreeRoot, ".worktrees")
+	parent := filepath.Dir(path)
+
+	for {
+		// Stop if we've reached or gone past .worktrees
+		if parent == worktreesDir || !strings.HasPrefix(parent, worktreesDir) {
+			break
+		}
+
+		// Check if directory is empty
+		entries, err := os.ReadDir(parent)
+		if err != nil {
+			break
+		}
+
+		if len(entries) > 0 {
+			// Directory not empty, stop
+			break
+		}
+
+		// Remove empty directory
+		if err := os.Remove(parent); err != nil {
+			break
+		}
+
+		// Move to parent
+		parent = filepath.Dir(parent)
+	}
 }
 
 // ShortPath returns a shortened path relative to the repo root.

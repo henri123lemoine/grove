@@ -307,3 +307,151 @@ func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *confi
 func EchoPath(wt *git.Worktree) string {
 	return wt.Path
 }
+
+// Multiplexer represents the type of terminal multiplexer.
+type Multiplexer int
+
+const (
+	MultiplexerNone Multiplexer = iota
+	MultiplexerTmux
+	MultiplexerZellij
+)
+
+// GetMultiplexer detects the current terminal multiplexer.
+func GetMultiplexer() Multiplexer {
+	if os.Getenv("TMUX") != "" {
+		return MultiplexerTmux
+	}
+	if os.Getenv("ZELLIJ") != "" {
+		return MultiplexerZellij
+	}
+	return MultiplexerNone
+}
+
+// MultiplexerName returns a human-readable name for the multiplexer.
+func (m Multiplexer) Name() string {
+	switch m {
+	case MultiplexerTmux:
+		return "tmux"
+	case MultiplexerZellij:
+		return "zellij"
+	default:
+		return ""
+	}
+}
+
+// WindowName returns the term used for windows/tabs in this multiplexer.
+func (m Multiplexer) WindowName() string {
+	switch m {
+	case MultiplexerTmux:
+		return "window"
+	case MultiplexerZellij:
+		return "tab"
+	default:
+		return "window"
+	}
+}
+
+// FindWindowsForPath finds all windows/tabs that have panes in the given path.
+// Returns a list of window/tab IDs.
+func FindWindowsForPath(path string) []string {
+	switch GetMultiplexer() {
+	case MultiplexerTmux:
+		return findTmuxWindowsForPath(path)
+	case MultiplexerZellij:
+		return findZellijTabsForPath(path)
+	default:
+		return nil
+	}
+}
+
+// CloseWindow closes a window/tab by ID.
+func CloseWindow(windowID string) error {
+	switch GetMultiplexer() {
+	case MultiplexerTmux:
+		return closeTmuxWindow(windowID)
+	case MultiplexerZellij:
+		return closeZellijTab(windowID)
+	default:
+		return nil
+	}
+}
+
+// InMultiplexer returns true if we're running inside a supported multiplexer.
+func InMultiplexer() bool {
+	return GetMultiplexer() != MultiplexerNone
+}
+
+// findTmuxWindowsForPath finds all tmux windows that have panes in the given path.
+func findTmuxWindowsForPath(path string) []string {
+	cmd := exec.Command("tmux", "list-panes", "-a", "-F", "#{window_id} #{pane_current_path}")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	absPath, _ := filepath.Abs(path)
+	windowsMap := make(map[string]bool)
+
+	for _, line := range strings.Split(string(output), "\n") {
+		parts := strings.SplitN(line, " ", 2)
+		if len(parts) == 2 {
+			windowID := parts[0]
+			panePath := parts[1]
+			// Check for exact match or if pane is within the worktree
+			if panePath == absPath || strings.HasPrefix(panePath, absPath+string(filepath.Separator)) {
+				windowsMap[windowID] = true
+			}
+		}
+	}
+
+	windows := make([]string, 0, len(windowsMap))
+	for w := range windowsMap {
+		windows = append(windows, w)
+	}
+	return windows
+}
+
+// closeTmuxWindow closes a tmux window by ID.
+func closeTmuxWindow(windowID string) error {
+	cmd := exec.Command("tmux", "kill-window", "-t", windowID)
+	return cmd.Run()
+}
+
+// findZellijTabsForPath finds zellij tabs that might be in the given path.
+// Zellij doesn't have a direct way to query pane CWDs, so we use the tab name
+// to find tabs that match the worktree's branch name pattern.
+func findZellijTabsForPath(path string) []string {
+	// Get the directory name which is typically the branch name
+	dirName := filepath.Base(path)
+
+	// Query tab names
+	cmd := exec.Command("zellij", "action", "query-tab-names")
+	output, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+
+	var tabs []string
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for i, line := range lines {
+		tabName := strings.TrimSpace(line)
+		// Check if tab name matches the directory name (branch name)
+		if tabName == dirName {
+			// Zellij uses 1-based tab indices
+			tabs = append(tabs, fmt.Sprintf("%d", i+1))
+		}
+	}
+	return tabs
+}
+
+// closeZellijTab closes a zellij tab by index.
+func closeZellijTab(tabIndex string) error {
+	// First go to the tab, then close it
+	goCmd := exec.Command("zellij", "action", "go-to-tab", tabIndex)
+	if err := goCmd.Run(); err != nil {
+		return err
+	}
+	closeCmd := exec.Command("zellij", "action", "close-tab")
+	return closeCmd.Run()
+}

@@ -15,6 +15,7 @@ import (
 type Config struct {
 	General  GeneralConfig  `toml:"general"`
 	Open     OpenConfig     `toml:"open"`
+	Delete   DeleteConfig   `toml:"delete"`
 	PR       PRConfig       `toml:"pr"`
 	Worktree WorktreeConfig `toml:"worktree"`
 	Safety   SafetyConfig   `toml:"safety"`
@@ -58,6 +59,16 @@ type OpenConfig struct {
 
 	// Stash dirty worktree before switching
 	StashOnSwitch bool `toml:"stash_on_switch"`
+}
+
+// DeleteConfig contains settings for worktree deletion.
+type DeleteConfig struct {
+	// What to do with terminal window/tab when deleting a worktree: "auto", "ask", "never"
+	// "auto" - automatically close the window/tab
+	// "ask" - prompt before closing
+	// "never" - don't close the window/tab
+	// Works with tmux (windows) and zellij (tabs)
+	CloseWindowAction string `toml:"close_window_action"`
 }
 
 // PRConfig contains settings for PR creation.
@@ -188,6 +199,9 @@ func DefaultConfig() *Config {
 			LayoutCommand:   "",
 			WindowNameStyle: "short",
 			StashOnSwitch:   false,
+		},
+		Delete: DeleteConfig{
+			CloseWindowAction: "ask",
 		},
 		PR: PRConfig{
 			Command:  "gh pr create",
@@ -367,6 +381,14 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("# Stash dirty worktree before switching\n")
 	b.WriteString("stash_on_switch = false\n\n")
 
+	b.WriteString("[delete]\n")
+	b.WriteString("# What to do with terminal window/tab when deleting a worktree\n")
+	b.WriteString("# Works with tmux (windows) and zellij (tabs)\n")
+	b.WriteString("# \"auto\" - automatically close the window/tab\n")
+	b.WriteString("# \"ask\" - prompt before closing (default)\n")
+	b.WriteString("# \"never\" - don't close the window/tab\n")
+	b.WriteString("close_window_action = \"ask\"\n\n")
+
 	b.WriteString("[pr]\n")
 	b.WriteString("# Command to create PR\n")
 	b.WriteString("command = \"gh pr create\"\n")
@@ -488,6 +510,14 @@ func (c *Config) Validate() []string {
 		c.Open.WindowNameStyle != "short" &&
 		c.Open.WindowNameStyle != "full" {
 		warnings = append(warnings, fmt.Sprintf("Invalid value for open.window_name_style: %s (expected short or full)", c.Open.WindowNameStyle))
+	}
+
+	// Check delete.close_window_action value
+	if c.Delete.CloseWindowAction != "" &&
+		c.Delete.CloseWindowAction != "auto" &&
+		c.Delete.CloseWindowAction != "ask" &&
+		c.Delete.CloseWindowAction != "never" {
+		warnings = append(warnings, fmt.Sprintf("Invalid value for delete.close_window_action: %s (expected auto, ask, or never)", c.Delete.CloseWindowAction))
 	}
 
 	// Check theme value
