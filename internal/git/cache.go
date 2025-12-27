@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// CacheTTL is how long cached data is considered fresh.
-const CacheTTL = 30 * time.Second
-
 // WorktreeCache represents cached worktree data.
 type WorktreeCache struct {
 	RepoRoot  string     `json:"repo_root"`
@@ -29,7 +26,8 @@ func getCachePath(repoRoot string) string {
 }
 
 // LoadCache attempts to load cached worktree data.
-// Returns nil if cache doesn't exist, is stale, or is for a different repo.
+// Returns nil if cache doesn't exist or is for a different repo.
+// Always returns cached data regardless of age - caller decides whether to refresh.
 func LoadCache(repoRoot string) *WorktreeCache {
 	path := getCachePath(repoRoot)
 	data, err := os.ReadFile(path)
@@ -44,11 +42,6 @@ func LoadCache(repoRoot string) *WorktreeCache {
 
 	// Check if cache is for the right repo
 	if cache.RepoRoot != repoRoot {
-		return nil
-	}
-
-	// Check if cache is still fresh
-	if time.Since(cache.UpdatedAt) > CacheTTL {
 		return nil
 	}
 
@@ -77,19 +70,20 @@ func SaveCache(repoRoot string, worktrees []Worktree) error {
 }
 
 // ListCached returns worktrees from cache if available, otherwise fetches fresh.
-// Also returns whether the data came from cache.
+// Always returns fromCache=true if cache exists (caller should always refresh in background).
 func ListCached() ([]Worktree, bool, error) {
 	repo, err := GetRepo()
 	if err != nil {
 		return nil, false, err
 	}
 
-	// Try cache first
+	// Try cache first - use it regardless of age for instant startup
 	if cache := LoadCache(repo.MainWorktreeRoot); cache != nil {
+		// Always indicate cache hit so caller triggers background refresh
 		return cache.Worktrees, true, nil
 	}
 
-	// Cache miss - fetch fresh
+	// Cache miss - fetch fresh (only happens on first run)
 	worktrees, err := List()
 	if err != nil {
 		return nil, false, err
