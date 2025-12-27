@@ -124,3 +124,83 @@ func TestExpandTemplateZellij(t *testing.T) {
 		})
 	}
 }
+
+func TestExpandTemplatePathsWithSpaces(t *testing.T) {
+	wt := &git.Worktree{
+		Path:   "/home/user/My Projects/feature-branch",
+		Branch: "feature/test",
+	}
+	repo := &git.Repo{
+		Root: "/home/user/My Projects",
+	}
+	cfg := config.DefaultConfig()
+
+	tests := []struct {
+		name     string
+		template string
+		expected string
+	}{
+		{
+			name:     "path with spaces is quoted",
+			template: "cd {path}",
+			expected: "cd '/home/user/My Projects/feature-branch'",
+		},
+		{
+			name:     "tmux with path containing spaces",
+			template: "tmux new-window -c {path}",
+			expected: "tmux new-window -c '/home/user/My Projects/feature-branch'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := expandTemplate(tt.template, wt, repo, cfg)
+			if result != tt.expected {
+				t.Errorf("expandTemplate() = %q, want %q", result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestShellQuote(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no special chars - no quoting",
+			input:    "/home/user/project",
+			expected: "/home/user/project",
+		},
+		{
+			name:     "path with spaces",
+			input:    "/home/user/My Project",
+			expected: "'/home/user/My Project'",
+		},
+		{
+			name:     "path with single quote",
+			input:    "/home/user/it's here",
+			expected: "'/home/user/it'\"'\"'s here'",
+		},
+		{
+			name:     "path with multiple special chars",
+			input:    "/home/user/test $VAR",
+			expected: "'/home/user/test $VAR'",
+		},
+		{
+			name:     "path with parentheses",
+			input:    "/home/user/test (copy)",
+			expected: "'/home/user/test (copy)'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := shellQuote(tt.input)
+			if result != tt.expected {
+				t.Errorf("shellQuote(%q) = %q, want %q", tt.input, result, tt.expected)
+			}
+		})
+	}
+}

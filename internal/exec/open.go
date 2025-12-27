@@ -187,9 +187,9 @@ func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
 	case "dev":
 		// Default dev layout: split horizontally 50/50
 		if inTmux {
-			layoutCmd = "tmux split-window -h -p 50 -c " + wt.Path
+			layoutCmd = "tmux split-window -h -p 50 -c " + shellQuote(wt.Path)
 		} else if inZellij {
-			layoutCmd = "zellij action new-pane --direction right --cwd " + wt.Path
+			layoutCmd = "zellij action new-pane --direction right --cwd " + shellQuote(wt.Path)
 		}
 	case "custom":
 		if cfg.Open.LayoutCommand != "" {
@@ -276,7 +276,7 @@ func applyNamedLayout(layout *config.LayoutConfig, wt *git.Worktree, repo *git.R
 		// Target pane
 		splitArgs = append(splitArgs, "-t", targetPane)
 
-		// Working directory
+		// Working directory (use unquoted path here since it's passed directly to tmux, not through shell)
 		splitArgs = append(splitArgs, "-c", wt.Path)
 
 		// Print new pane ID
@@ -310,8 +310,8 @@ func applyNamedLayout(layout *config.LayoutConfig, wt *git.Worktree, repo *git.R
 func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *config.Config) string {
 	result := command
 
-	// {path} - Full path to worktree
-	result = strings.ReplaceAll(result, "{path}", wt.Path)
+	// {path} - Full path to worktree (shell-quoted for paths with spaces)
+	result = strings.ReplaceAll(result, "{path}", shellQuote(wt.Path))
 
 	// {branch} - Full branch name
 	result = strings.ReplaceAll(result, "{branch}", wt.Branch)
@@ -331,6 +331,19 @@ func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *confi
 	result = strings.ReplaceAll(result, "{window_name}", windowName)
 
 	return result
+}
+
+// shellQuote returns a shell-safe quoted string.
+// Uses single quotes, escaping any embedded single quotes.
+func shellQuote(s string) string {
+	// If the string has no special characters, no need to quote
+	if !strings.ContainsAny(s, " \t\n'\"\\$`!*?[]{}()&|;<>") {
+		return s
+	}
+	// Use single quotes, escaping embedded single quotes as '\''
+	// This closes the single quote, adds an escaped single quote, and reopens
+	escaped := strings.ReplaceAll(s, "'", "'\"'\"'")
+	return "'" + escaped + "'"
 }
 
 // EchoPath is a simple open command that just echoes the path.
