@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -35,6 +36,54 @@ const (
 	StateSelectLayout
 	StatePruneConfirm
 )
+
+// SortMode represents the worktree list sort order.
+type SortMode int
+
+const (
+	SortDefault  SortMode = iota // Current first, main second, then alphabetical
+	SortName                     // Alphabetical A-Z
+	SortNameDesc                 // Alphabetical Z-A
+	SortDirty                    // Dirty worktrees first
+	SortClean                    // Clean worktrees first
+)
+
+// String returns the display name for the sort mode.
+func (s SortMode) String() string {
+	switch s {
+	case SortName:
+		return "name"
+	case SortNameDesc:
+		return "name-desc"
+	case SortDirty:
+		return "dirty"
+	case SortClean:
+		return "clean"
+	default:
+		return "default"
+	}
+}
+
+// Next returns the next sort mode in the cycle.
+func (s SortMode) Next() SortMode {
+	return (s + 1) % 5
+}
+
+// ParseSortMode parses a sort mode from string.
+func ParseSortMode(s string) SortMode {
+	switch s {
+	case "name":
+		return SortName
+	case "name-desc":
+		return SortNameDesc
+	case "dirty":
+		return SortDirty
+	case "clean":
+		return SortClean
+	default:
+		return SortDefault
+	}
+}
 
 // Model is the main application model.
 type Model struct {
@@ -91,7 +140,8 @@ type Model struct {
 	showDetail     bool
 	spinner        spinner.Model
 	configWarnings []string
-	lastPruneCount int // For displaying prune feedback
+	lastPruneCount int      // For displaying prune feedback
+	sortMode       SortMode // Current sort order
 
 	// Exit behavior
 	shouldQuit       bool
@@ -135,6 +185,7 @@ func New(cfg *config.Config, repo *git.Repo, configWarnings []string) Model {
 		state:          StateList,
 		loading:        true,
 		configWarnings: configWarnings,
+		sortMode:       ParseSortMode(cfg.UI.DefaultSort),
 	}
 }
 
@@ -630,6 +681,10 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.state = StateStash
 			return m, loadStashList(wt.Path)
 		}
+	case key.Matches(msg, m.keys.Sort):
+		m.sortMode = m.sortMode.Next()
+		m.applyFilter() // Re-sort the list
+		return m, nil
 	}
 	return m, nil
 }
@@ -1046,7 +1101,9 @@ func (w worktreeSource) Len() int {
 func (m *Model) applyFilter() {
 	filter := m.filterInput.Value()
 	if filter == "" {
-		m.filteredWorktrees = m.worktrees
+		// Make a copy to avoid modifying original
+		m.filteredWorktrees = make([]git.Worktree, len(m.worktrees))
+		copy(m.filteredWorktrees, m.worktrees)
 	} else {
 		source := worktreeSource(m.worktrees)
 		matches := fuzzy.FindFrom(filter, source)
@@ -1057,6 +1114,9 @@ func (m *Model) applyFilter() {
 		}
 	}
 
+	// Apply sorting
+	m.sortWorktrees()
+
 	// Ensure cursor is in bounds
 	if m.cursor >= len(m.filteredWorktrees) {
 		m.cursor = len(m.filteredWorktrees) - 1
@@ -1064,6 +1124,49 @@ func (m *Model) applyFilter() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
+}
+
+// sortWorktrees sorts the filtered worktrees based on the current sort mode.
+func (m *Model) sortWorktrees() {
+	if len(m.filteredWorktrees) == 0 {
+		return
+	}
+
+	sort.SliceStable(m.filteredWorktrees, func(i, j int) bool {
+		a, b := m.filteredWorktrees[i], m.filteredWorktrees[j]
+
+		switch m.sortMode {
+		case SortName:
+			return a.Branch < b.Branch
+
+		case SortNameDesc:
+			return a.Branch > b.Branch
+
+		case SortDirty:
+			// Dirty first, then by name
+			if a.IsDirty != b.IsDirty {
+				return a.IsDirty
+			}
+			return a.Branch < b.Branch
+
+		case SortClean:
+			// Clean first, then by name
+			if a.IsDirty != b.IsDirty {
+				return !a.IsDirty
+			}
+			return a.Branch < b.Branch
+
+		default: // SortDefault
+			// Current first, main second, then alphabetical
+			if a.IsCurrent != b.IsCurrent {
+				return a.IsCurrent
+			}
+			if a.IsMain != b.IsMain {
+				return a.IsMain
+			}
+			return a.Branch < b.Branch
+		}
+	})
 }
 
 // View renders the UI.
@@ -1106,6 +1209,7 @@ func (m Model) View() string {
 		ConfigWarnings:      m.configWarnings,
 		LastPruneCount:      m.lastPruneCount,
 		DeletedBranch:       m.deletedBranch,
+		SortMode:            m.sortMode.String(),
 	})
 }
 

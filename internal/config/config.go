@@ -160,6 +160,9 @@ type UIConfig struct {
 
 	// Color theme: auto, dark, light
 	Theme string `toml:"theme"`
+
+	// Default sort order: "default", "name", "name-desc", "dirty", "clean"
+	DefaultSort string `toml:"default_sort"`
 }
 
 // KeysConfig contains keybinding settings.
@@ -177,6 +180,7 @@ type KeysConfig struct {
 	Detail string `toml:"detail"`
 	Prune  string `toml:"prune"`
 	Stash  string `toml:"stash"`
+	Sort   string `toml:"sort"`
 	Help   string `toml:"help"`
 	Quit   string `toml:"quit"`
 }
@@ -218,6 +222,7 @@ func DefaultConfig() *Config {
 			ShowCommits:     true,
 			ShowUpstream:    true,
 			Theme:           "auto",
+			DefaultSort:     "default",
 		},
 		Keys: KeysConfig{
 			Up:     "up,k",
@@ -233,6 +238,7 @@ func DefaultConfig() *Config {
 			Detail: "tab",
 			Prune:  "P",
 			Stash:  "s",
+			Sort:   "o",
 			Help:   "?",
 			Quit:   "q,ctrl+c",
 		},
@@ -419,7 +425,9 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("# Show upstream tracking status\n")
 	b.WriteString("show_upstream = true\n")
 	b.WriteString("# Color theme: \"auto\", \"dark\", or \"light\"\n")
-	b.WriteString("theme = \"auto\"\n\n")
+	b.WriteString("theme = \"auto\"\n")
+	b.WriteString("# Default sort order: \"default\", \"name\", \"name-desc\", \"dirty\", \"clean\"\n")
+	b.WriteString("default_sort = \"default\"\n\n")
 
 	b.WriteString("[keys]\n")
 	b.WriteString("# Keybindings (comma-separated for multiple keys)\n")
@@ -527,6 +535,16 @@ func (c *Config) Validate() []string {
 		c.UI.Theme != "dark" &&
 		c.UI.Theme != "light" {
 		warnings = append(warnings, fmt.Sprintf("Invalid value for ui.theme: %s (expected auto, dark, or light)", c.UI.Theme))
+	}
+
+	// Check default_sort value
+	if c.UI.DefaultSort != "" &&
+		c.UI.DefaultSort != "default" &&
+		c.UI.DefaultSort != "name" &&
+		c.UI.DefaultSort != "name-desc" &&
+		c.UI.DefaultSort != "dirty" &&
+		c.UI.DefaultSort != "clean" {
+		warnings = append(warnings, fmt.Sprintf("Invalid value for ui.default_sort: %s (expected default, name, name-desc, dirty, or clean)", c.UI.DefaultSort))
 	}
 
 	// Validate layouts

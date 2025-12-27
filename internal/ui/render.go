@@ -77,6 +77,7 @@ type RenderParams struct {
 	ConfigWarnings      []string
 	LastPruneCount      int    // For displaying prune feedback
 	DeletedBranch       string // Branch to potentially delete after worktree removal
+	SortMode            string // Current sort order
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -178,6 +179,11 @@ func renderList(p RenderParams) string {
 		header += "  " + DirtyStyle.Render("[filter: "+p.FilterValue+"]")
 	}
 
+	// Show sort indicator (only if not default)
+	if p.SortMode != "" && p.SortMode != "default" {
+		header += "  " + PathStyle.Render("[sort: "+p.SortMode+"]")
+	}
+
 	b.WriteString(header + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 
@@ -255,8 +261,8 @@ func renderList(p RenderParams) string {
 	// Footer
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	helpText := compactHelp(
-		"enter open • n new • d delete • r rename • f fetch • / filter • tab detail • ? help • q quit",
-		"enter•n•d•r•f•/•tab•?•q",
+		"enter open • n new • d delete • r rename • f fetch • / filter • o sort • tab detail • ? help • q quit",
+		"enter•n•d•r•f•/•o•tab•?•q",
 		p.Width,
 	)
 	b.WriteString(HelpStyle.Render(helpText))

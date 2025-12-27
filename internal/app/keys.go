@@ -26,6 +26,7 @@ type KeyMap struct {
 	Detail key.Binding
 	Prune  key.Binding
 	Stash  key.Binding
+	Sort   key.Binding
 
 	// General
 	Confirm key.Binding
@@ -88,6 +89,10 @@ func DefaultKeyMap() KeyMap {
 		Stash: key.NewBinding(
 			key.WithKeys("s"),
 			key.WithHelp("s", "stash"),
+		),
+		Sort: key.NewBinding(
+			key.WithKeys("o"),
+			key.WithHelp("o", "sort"),
 		),
 		Confirm: key.NewBinding(
 			key.WithKeys("enter", "y"),
@@ -190,6 +195,12 @@ func KeyMapFromConfig(cfg *config.KeysConfig) KeyMap {
 			key.WithHelp(cfg.Stash, "stash"),
 		)
 	}
+	if cfg.Sort != "" {
+		km.Sort = key.NewBinding(
+			key.WithKeys(parseKeys(cfg.Sort)...),
+			key.WithHelp(cfg.Sort, "sort"),
+		)
+	}
 	if cfg.Help != "" {
 		km.Help = key.NewBinding(
 			key.WithKeys(parseKeys(cfg.Help)...),
@@ -243,6 +254,7 @@ func (km KeyMap) HelpSections() []ui.HelpSection {
 				{Keys: km.Stash.Help().Key, Desc: "Manage stashes"},
 				{Keys: km.Filter.Help().Key, Desc: "Filter worktrees"},
 				{Keys: km.Detail.Help().Key, Desc: "Toggle detail panel"},
+				{Keys: km.Sort.Help().Key, Desc: "Cycle sort order"},
 			},
 		},
 		{
