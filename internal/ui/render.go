@@ -482,7 +482,9 @@ func renderSelectBase(p RenderParams) string {
 			// Add type indicator
 			typeIndicator := ""
 			if showBranchTypes {
-				if branch.IsWorktree {
+				if branch.IsTag {
+					typeIndicator = GitTagStyle.Render(" [tag]")
+				} else if branch.IsWorktree {
 					typeIndicator = WorktreeTagStyle.Render(" [worktree]")
 				} else if branch.IsRemote {
 					typeIndicator = RemoteTagStyle.Render(" [remote]")

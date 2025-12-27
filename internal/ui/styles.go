@@ -101,6 +101,7 @@ var (
 	WorktreeTagStyle lipgloss.Style
 	LocalTagStyle    lipgloss.Style
 	RemoteTagStyle   lipgloss.Style
+	GitTagStyle      lipgloss.Style // For git tags (not branches)
 )
 
 // Symbols
@@ -226,6 +227,9 @@ func InitTheme(theme string) {
 
 	RemoteTagStyle = lipgloss.NewStyle().
 		Foreground(ColorWarning)
+
+	GitTagStyle = lipgloss.NewStyle().
+		Foreground(ColorPurple)
 }
 
 // detectTheme tries to detect whether the terminal has a light or dark background

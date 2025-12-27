@@ -5,12 +5,13 @@ import (
 	"strings"
 )
 
-// Branch represents a Git branch.
+// Branch represents a Git branch or tag.
 type Branch struct {
 	Name       string
 	IsRemote   bool
 	IsCurrent  bool
 	IsWorktree bool // Branch is checked out in a worktree
+	IsTag      bool // This is a tag, not a branch
 }
 
 // ListBranches returns all local branches.
@@ -79,8 +80,29 @@ func ListAllBranches() ([]Branch, error) {
 	return append(local, remote...), nil
 }
 
-// ListAllBranchesWithWorktreeStatus returns all branches with worktree status.
-// Branches are sorted: current first, then default branch, then local, then remote.
+// ListTags returns all tags.
+func ListTags() ([]Branch, error) {
+	output, err := runGit("tag", "--list", "--sort=-creatordate")
+	if err != nil {
+		return nil, err
+	}
+
+	var tags []Branch
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if line == "" {
+			continue
+		}
+		tags = append(tags, Branch{
+			Name:  line,
+			IsTag: true,
+		})
+	}
+
+	return tags, nil
+}
+
+// ListAllBranchesWithWorktreeStatus returns all branches and tags with worktree status.
+// Sorted: current first, default branch, worktrees, local branches, remote branches, then tags.
 func ListAllBranchesWithWorktreeStatus() ([]Branch, error) {
 	// Get all branches
 	local, err := ListBranches()
@@ -92,6 +114,9 @@ func ListAllBranchesWithWorktreeStatus() ([]Branch, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Get tags (ignore errors - repo might not have tags)
+	tags, _ := ListTags()
 
 	// Get worktree branches
 	worktreeBranches, err := GetWorktreeBranches()
@@ -118,12 +143,18 @@ func ListAllBranchesWithWorktreeStatus() ([]Branch, error) {
 		}
 	}
 
-	// Combine all branches
+	// Combine all branches and tags
 	allBranches := append(local, remote...)
+	allBranches = append(allBranches, tags...)
 
-	// Sort: current first, then default, then worktrees, then local, then remote
+	// Sort: current first, default, worktrees, local, remote, then tags
 	sort.SliceStable(allBranches, func(i, j int) bool {
 		bi, bj := allBranches[i], allBranches[j]
+
+		// Tags come last
+		if bi.IsTag != bj.IsTag {
+			return !bi.IsTag
+		}
 
 		// Current branch first
 		if bi.IsCurrent != bj.IsCurrent {
