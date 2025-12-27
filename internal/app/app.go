@@ -26,12 +26,14 @@ const (
 	StateCreateSelectBase
 	StateDelete
 	StateDeleteConfirmCloseWindow
+	StateDeleteConfirmBranch
 	StateFilter
 	StateFetching
 	StateHelp
 	StateRename
 	StateStash
 	StateSelectLayout
+	StatePruneConfirm
 )
 
 // Model is the main application model.
@@ -64,6 +66,7 @@ type Model struct {
 	safetyInfo          *git.SafetyInfo
 	deleteInput         textinput.Model
 	pendingWindowsClose []string // Window/tab IDs to potentially close after delete
+	deletedBranch       string   // Branch name to potentially delete after worktree removal
 
 	// Filter
 	filterInput textinput.Model
@@ -88,6 +91,7 @@ type Model struct {
 	showDetail     bool
 	spinner        spinner.Model
 	configWarnings []string
+	lastPruneCount int // For displaying prune feedback
 
 	// Exit behavior
 	shouldQuit       bool
@@ -158,6 +162,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.configWarnings = nil
 			return m, nil
 		}
+
+		// Clear prune feedback on any keypress
+		m.lastPruneCount = 0
 
 		// Handle quit globally
 		if key.Matches(msg, m.keys.Quit) && m.state == StateList {
@@ -283,7 +290,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.deleteInput.Reset()
 			m.deleteWorktree = nil
 			m.safetyInfo = nil
+			m.deletedBranch = ""
 			return m, loadWorktrees
+		}
+
+		// Store the branch name for potential deletion
+		if m.deleteWorktree != nil && !m.deleteWorktree.IsMain && !m.deleteWorktree.IsDetached {
+			m.deletedBranch = m.deleteWorktree.Branch
 		}
 
 		// Check for multiplexer windows/tabs to close
@@ -308,11 +321,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		m.state = StateList
-		m.deleteInput.Reset()
-		m.deleteWorktree = nil
-		m.safetyInfo = nil
-		return m, loadWorktrees
+		// Check if we should delete the branch
+		return m.handleBranchDeletionPrompt()
 
 	case WorktreeOpenedMsg:
 		if msg.Err != nil {
@@ -362,7 +372,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.err = msg.Err
 			return m, nil
 		}
-		// Refresh worktrees after pruning
+		// Store count for display and refresh
+		m.lastPruneCount = msg.PrunedCount
+		if msg.PrunedCount == 0 {
+			m.err = fmt.Errorf("no stale worktrees to prune")
+		}
 		return m, loadWorktrees
 
 	case StashListLoadedMsg:
@@ -429,6 +443,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 		return m, nil
+
+	case BranchDeletedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+		}
+		return m, loadWorktrees
 	}
 
 	return m, nil
@@ -447,6 +467,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleDeleteKeys(msg)
 	case StateDeleteConfirmCloseWindow:
 		return m.handleDeleteConfirmCloseWindowKeys(msg)
+	case StateDeleteConfirmBranch:
+		return m.handleDeleteConfirmBranchKeys(msg)
 	case StateFilter:
 		return m.handleFilterKeys(msg)
 	case StateHelp:
@@ -457,6 +479,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleStashKeys(msg)
 	case StateSelectLayout:
 		return m.handleLayoutKeys(msg)
+	case StatePruneConfirm:
+		return m.handlePruneConfirmKeys(msg)
 	}
 	return m, nil
 }
@@ -596,7 +620,8 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 	case key.Matches(msg, m.keys.Prune):
-		return m, pruneWorktrees
+		m.state = StatePruneConfirm
+		return m, nil
 	case key.Matches(msg, m.keys.Stash):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
 			wt := &m.filteredWorktrees[m.cursor]
@@ -759,9 +784,10 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (m Model) handleDeleteConfirmCloseWindowKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
-		// Cancel - don't close windows
+		// Cancel - don't close windows, skip branch deletion too
 		m.state = StateList
 		m.pendingWindowsClose = nil
+		m.deletedBranch = ""
 		return m, nil
 	}
 
@@ -770,15 +796,14 @@ func (m Model) handleDeleteConfirmCloseWindowKeys(msg tea.KeyMsg) (tea.Model, te
 		for _, w := range m.pendingWindowsClose {
 			_ = exec.CloseWindow(w)
 		}
-		m.state = StateList
 		m.pendingWindowsClose = nil
-		return m, nil
+		// Continue to branch deletion prompt
+		return m.handleBranchDeletionPrompt()
 	}
 	if msg.String() == "n" || msg.String() == "N" {
-		// Don't close windows
-		m.state = StateList
+		// Don't close windows, but still check branch deletion
 		m.pendingWindowsClose = nil
-		return m, nil
+		return m.handleBranchDeletionPrompt()
 	}
 
 	return m, nil
@@ -931,6 +956,79 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m Model) handlePruneConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.state = StateList
+		return m, nil
+	case tea.KeyRunes:
+		switch string(msg.Runes) {
+		case "y", "Y":
+			m.state = StateList
+			return m, pruneWorktrees
+		case "n", "N":
+			m.state = StateList
+			return m, nil
+		}
+	}
+	return m, nil
+}
+
+// handleBranchDeletionPrompt checks config and either deletes branch, prompts, or skips.
+func (m Model) handleBranchDeletionPrompt() (tea.Model, tea.Cmd) {
+	m.state = StateList
+	m.deleteInput.Reset()
+	m.deleteWorktree = nil
+	m.safetyInfo = nil
+
+	// Skip if no branch to delete or if it's the default branch
+	if m.deletedBranch == "" || m.deletedBranch == m.repo.DefaultBranch {
+		m.deletedBranch = ""
+		return m, loadWorktrees
+	}
+
+	switch m.config.Delete.DeleteBranchAction {
+	case "always":
+		// Delete branch immediately
+		branch := m.deletedBranch
+		m.deletedBranch = ""
+		return m, deleteBranch(branch)
+	case "ask":
+		// Prompt user
+		m.state = StateDeleteConfirmBranch
+		return m, loadWorktrees
+	default: // "never" or any other value
+		m.deletedBranch = ""
+		return m, loadWorktrees
+	}
+}
+
+func (m Model) handleDeleteConfirmBranchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Cancel - don't delete branch
+		m.state = StateList
+		m.deletedBranch = ""
+		return m, nil
+	}
+
+	if msg.String() == "y" || msg.String() == "Y" {
+		// Delete the branch
+		branch := m.deletedBranch
+		m.state = StateList
+		m.deletedBranch = ""
+		return m, deleteBranch(branch)
+	}
+	if msg.String() == "n" || msg.String() == "N" {
+		// Don't delete branch
+		m.state = StateList
+		m.deletedBranch = ""
+		return m, nil
+	}
+
+	return m, nil
+}
+
 // worktreeSource implements fuzzy.Source for worktree fuzzy matching.
 type worktreeSource []git.Worktree
 
@@ -1006,6 +1104,8 @@ func (m Model) View() string {
 		PendingWindowsCount: len(m.pendingWindowsClose),
 		PendingWindowsName:  exec.GetMultiplexer().WindowName(),
 		ConfigWarnings:      m.configWarnings,
+		LastPruneCount:      m.lastPruneCount,
+		DeletedBranch:       m.deletedBranch,
 	})
 }
 
@@ -1098,6 +1198,13 @@ func fetchAll() tea.Msg {
 func pruneWorktrees() tea.Msg {
 	count, err := git.Prune()
 	return PruneCompletedMsg{PrunedCount: count, Err: err}
+}
+
+func deleteBranch(branch string) tea.Cmd {
+	return func() tea.Msg {
+		err := git.DeleteBranch(branch, false)
+		return BranchDeletedMsg{Branch: branch, Err: err}
+	}
 }
 
 func renameBranch(worktreePath, oldName, newName string) tea.Cmd {

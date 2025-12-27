@@ -16,12 +16,14 @@ const (
 	StateCreateSelectBase
 	StateDelete
 	StateDeleteConfirmCloseWindow
+	StateDeleteConfirmBranch
 	StateFilter
 	StateFetching
 	StateHelp
 	StateRename
 	StateStash
 	StateSelectLayout
+	StatePruneConfirm
 )
 
 // HelpBinding represents a keybinding for help display.
@@ -73,6 +75,8 @@ type RenderParams struct {
 	PendingWindowsCount int
 	PendingWindowsName  string // "window" for tmux, "tab" for zellij
 	ConfigWarnings      []string
+	LastPruneCount      int    // For displaying prune feedback
+	DeletedBranch       string // Branch to potentially delete after worktree removal
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -136,6 +140,8 @@ func Render(p RenderParams) string {
 		return renderDelete(p)
 	case StateDeleteConfirmCloseWindow:
 		return renderDeleteConfirmCloseWindow(p)
+	case StateDeleteConfirmBranch:
+		return renderDeleteConfirmBranch(p)
 	case StateFilter:
 		return renderFilter(p)
 	case StateFetching:
@@ -148,6 +154,8 @@ func Render(p RenderParams) string {
 		return renderStash(p)
 	case StateSelectLayout:
 		return renderSelectLayout(p)
+	case StatePruneConfirm:
+		return renderPruneConfirm(p)
 	default:
 		return renderList(p)
 	}
@@ -184,6 +192,15 @@ func renderList(p RenderParams) string {
 			b.WriteString(DirtyStyle.Render("⚠ "+w) + "\n")
 		}
 		b.WriteString(HelpStyle.Render("(press any key to dismiss)") + "\n\n")
+	}
+
+	// Prune feedback (shown after prune operation)
+	if p.LastPruneCount > 0 {
+		msg := fmt.Sprintf("Pruned %d stale worktree entries", p.LastPruneCount)
+		if p.LastPruneCount == 1 {
+			msg = "Pruned 1 stale worktree entry"
+		}
+		b.WriteString(CleanStyle.Render("✓ "+msg) + "\n\n")
 	}
 
 	// Loading state
@@ -586,6 +603,22 @@ func renderDeleteConfirmCloseWindow(p RenderParams) string {
 	return wrapInBox(b.String(), p.Width, p.Height)
 }
 
+// renderDeleteConfirmBranch renders the branch deletion confirmation after worktree delete.
+func renderDeleteConfirmBranch(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("DELETE BRANCH?") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	b.WriteString("Worktree has been deleted.\n\n")
+	b.WriteString("Would you also like to delete the branch?\n\n")
+	b.WriteString("Branch: " + SelectedStyle.Render(p.DeletedBranch) + "\n\n")
+	b.WriteString(HelpStyle.Render("y delete branch • n keep branch • esc cancel"))
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
 // renderFilter renders the filter mode.
 func renderFilter(p RenderParams) string {
 	var b strings.Builder
@@ -790,6 +823,22 @@ func renderSelectLayout(p RenderParams) string {
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	b.WriteString(HelpStyle.Render("↑/↓ select • enter confirm • esc cancel"))
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderPruneConfirm renders the prune confirmation dialog.
+func renderPruneConfirm(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("PRUNE WORKTREES") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	b.WriteString("This will remove stale worktree entries (worktrees that\n")
+	b.WriteString("no longer exist on disk).\n\n")
+	b.WriteString("Are you sure you want to prune?\n\n")
+	b.WriteString(HelpStyle.Render("y confirm • n cancel"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }

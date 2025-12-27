@@ -68,6 +68,12 @@ type DeleteConfig struct {
 	// "never" - don't close the window/tab
 	// Works with tmux (windows) and zellij (tabs)
 	CloseWindowAction string `toml:"close_window_action"`
+
+	// What to do with the branch after deleting a worktree: "ask", "always", "never"
+	// "ask" - prompt before deleting the branch
+	// "always" - automatically delete the branch
+	// "never" - don't delete the branch
+	DeleteBranchAction string `toml:"delete_branch_action"`
 }
 
 // WorktreeConfig contains settings for worktree creation.
@@ -192,7 +198,8 @@ func DefaultConfig() *Config {
 			StashOnSwitch:   false,
 		},
 		Delete: DeleteConfig{
-			CloseWindowAction: "ask",
+			CloseWindowAction:  "ask",
+			DeleteBranchAction: "ask",
 		},
 		Worktree: WorktreeConfig{
 			CopyPatterns:  []string{},
@@ -373,7 +380,12 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("# \"auto\" - automatically close the window/tab\n")
 	b.WriteString("# \"ask\" - prompt before closing (default)\n")
 	b.WriteString("# \"never\" - don't close the window/tab\n")
-	b.WriteString("close_window_action = \"ask\"\n\n")
+	b.WriteString("close_window_action = \"ask\"\n")
+	b.WriteString("# What to do with the branch after deleting a worktree\n")
+	b.WriteString("# \"ask\" - prompt before deleting the branch (default)\n")
+	b.WriteString("# \"always\" - automatically delete the branch\n")
+	b.WriteString("# \"never\" - don't delete the branch\n")
+	b.WriteString("delete_branch_action = \"ask\"\n\n")
 
 	b.WriteString("[worktree]\n")
 	b.WriteString("# File patterns to copy to new worktrees\n")
@@ -499,6 +511,14 @@ func (c *Config) Validate() []string {
 		c.Delete.CloseWindowAction != "ask" &&
 		c.Delete.CloseWindowAction != "never" {
 		warnings = append(warnings, fmt.Sprintf("Invalid value for delete.close_window_action: %s (expected auto, ask, or never)", c.Delete.CloseWindowAction))
+	}
+
+	// Check delete.delete_branch_action value
+	if c.Delete.DeleteBranchAction != "" &&
+		c.Delete.DeleteBranchAction != "ask" &&
+		c.Delete.DeleteBranchAction != "always" &&
+		c.Delete.DeleteBranchAction != "never" {
+		warnings = append(warnings, fmt.Sprintf("Invalid value for delete.delete_branch_action: %s (expected ask, always, or never)", c.Delete.DeleteBranchAction))
 	}
 
 	// Check theme value

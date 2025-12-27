@@ -112,6 +112,12 @@ type UpstreamLoadedMsg struct {
 	Worktrees []git.Worktree
 }
 
+// BranchDeletedMsg is sent when a branch is deleted.
+type BranchDeletedMsg struct {
+	Branch string
+	Err    error
+}
+
 // WorktreesCachedMsg is sent when worktrees are loaded from cache.
 // FromCache indicates if this was a cache hit (needs background refresh).
 type WorktreesCachedMsg struct {
