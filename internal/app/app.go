@@ -1238,20 +1238,12 @@ func (m Model) visibleItemCount() int {
 	// Total overhead: 6 lines
 	const overhead = 6
 
-	// Each worktree entry takes 2-3 lines (depending on ShowCommits)
-	// Plus 1 line for the separator between entries
-	linesPerItem := 2
-	if m.config != nil && m.config.UI.ShowCommits {
-		linesPerItem = 3
-	}
-	// Account for separator line between entries
-	linesPerItem++
-
+	// Each worktree entry is a single line
 	availableLines := m.height - overhead
-	if availableLines < linesPerItem {
+	if availableLines < 1 {
 		return 1
 	}
-	return availableLines / linesPerItem
+	return availableLines
 }
 
 // ensureCursorVisible adjusts viewOffset to keep cursor in visible area.
