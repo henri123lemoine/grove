@@ -120,14 +120,22 @@ func TestListPerformance(t *testing.T) {
 
 		start := time.Now()
 		var wg sync.WaitGroup
+		errCh := make(chan error, len(paths))
 		for _, path := range paths {
 			wg.Add(1)
 			go func(p string) {
 				defer wg.Done()
-				GetDirtyStatus(p)
+				_, _, err := GetDirtyStatus(p)
+				if err != nil {
+					errCh <- err
+				}
 			}(path)
 		}
 		wg.Wait()
+		close(errCh)
+		for err := range errCh {
+			t.Fatalf("GetDirtyStatus() error: %v", err)
+		}
 		elapsed := time.Since(start)
 
 		t.Logf("Parallel git status (%d calls): %v", len(paths), elapsed)

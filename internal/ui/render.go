@@ -411,13 +411,6 @@ func renderDetailPanel(wt git.Worktree, width int) string {
 	return b.String()
 }
 
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
 // renderCreate renders the create worktree flow.
 func renderCreate(p RenderParams) string {
 	var b strings.Builder
