@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -562,26 +563,33 @@ func (m Model) handleMouse(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
 
 	// Handle left mouse button press
 	if msg.Button == tea.MouseButtonLeft && msg.Action == tea.MouseActionPress {
-		// Calculate which worktree was clicked
-		// Account for header (2 lines) and box padding
-		headerHeight := 3
-
-		// Account for "↑ X more above" indicator if scrolled
-		if m.viewOffset > 0 {
-			headerHeight++
+		if m.loading || len(m.filteredWorktrees) == 0 {
+			return m, nil
 		}
 
-		// Row height depends on whether commits are shown
-		rowHeight := 2
-		if m.config != nil && m.config.UI.ShowCommits {
-			rowHeight = 3
+		startIdx, endIdx := m.visibleWorktreeRange()
+		if startIdx >= endIdx {
+			return m, nil
 		}
 
-		// Also account for detail panel if shown (adds ~8 lines per selected item)
-		// and separator lines between entries (+1 per entry)
-		clickedRow := (msg.Y - headerHeight) / (rowHeight + 1) // +1 for separator
-		if clickedRow >= 0 && clickedRow < len(m.filteredWorktrees) {
-			m.cursor = clickedRow
+		listTop := m.listTopLine(startIdx)
+		if msg.Y < listTop {
+			return m, nil
+		}
+
+		// Map click position to the rendered list layout.
+		line := msg.Y - listTop
+		for i := startIdx; i < endIdx; i++ {
+			entryLines := 1
+			if m.showDetail && i == m.cursor {
+				entryLines += detailPanelLineCount(m.filteredWorktrees[i])
+			}
+			if line < entryLines {
+				m.cursor = i
+				m.ensureCursorVisible()
+				break
+			}
+			line -= entryLines
 		}
 	}
 
@@ -1524,6 +1532,123 @@ func (m *Model) ensureBaseBranchVisible() {
 	if m.baseViewOffset < 0 {
 		m.baseViewOffset = 0
 	}
+}
+
+// visibleWorktreeRange returns the range rendered in the list view.
+func (m Model) visibleWorktreeRange() (int, int) {
+	startIdx := m.viewOffset
+	endIdx := m.viewOffset + m.visibleItemCount()
+	if endIdx > len(m.filteredWorktrees) {
+		endIdx = len(m.filteredWorktrees)
+	}
+	if startIdx >= len(m.filteredWorktrees) {
+		startIdx = 0
+	}
+	return startIdx, endIdx
+}
+
+// listTopLine returns the first line index of the first visible worktree entry.
+func (m Model) listTopLine(startIdx int) int {
+	width := m.width
+	if width < ui.MinWidth {
+		width = ui.MinWidth
+	}
+	renderContentWidth := width - 4
+	if renderContentWidth < 1 {
+		renderContentWidth = 1
+	}
+	wrapWidth := width - 6
+	if wrapWidth < 1 {
+		wrapWidth = 1
+	}
+
+	lines := 0
+
+	// Box border + top padding.
+	lines += 2
+
+	// Header (may wrap) + divider.
+	repoName := ""
+	if m.repo != nil {
+		repoName = filepath.Base(m.repo.MainWorktreeRoot)
+	}
+	header := ui.HeaderStyle.Render("WORKTREES") + "  " + ui.PathStyle.Render(repoName)
+	filterValue := m.filterInput.Value()
+	if filterValue != "" {
+		header += "  " + ui.DirtyStyle.Render("[filter: "+filterValue+"]")
+	}
+	sortMode := m.sortMode.String()
+	if sortMode != "" && sortMode != "default" {
+		header += "  " + ui.PathStyle.Render("[sort: "+sortMode+"]")
+	}
+	lines += wrappedLineCount(header, wrapWidth)
+	divider := ui.DividerStyle.Render(strings.Repeat("─", renderContentWidth))
+	lines += wrappedLineCount(divider, wrapWidth)
+
+	// Error line plus trailing blank line.
+	if m.err != nil {
+		errLine := ui.ErrorStyle.Render("Error: " + m.err.Error())
+		lines += wrappedLineCount(errLine, wrapWidth)
+		lines++
+	}
+
+	// Config warnings + dismiss line + trailing blank line.
+	if len(m.configWarnings) > 0 {
+		for _, w := range m.configWarnings {
+			warnLine := ui.DirtyStyle.Render("⚠ " + w)
+			lines += wrappedLineCount(warnLine, wrapWidth)
+		}
+		dismissLine := ui.HelpStyle.Render("(press any key to dismiss)")
+		lines += wrappedLineCount(dismissLine, wrapWidth)
+		lines++
+	}
+
+	// Prune feedback line + trailing blank line.
+	if m.lastPruneCount > 0 {
+		msg := fmt.Sprintf("Pruned %d stale worktree entries", m.lastPruneCount)
+		if m.lastPruneCount == 1 {
+			msg = "Pruned 1 stale worktree entry"
+		}
+		pruneLine := ui.CleanStyle.Render("✓ " + msg)
+		lines += wrappedLineCount(pruneLine, wrapWidth)
+		lines++
+	}
+
+	// "More above" indicator when scrolled.
+	if startIdx > 0 {
+		aboveLine := ui.PathStyle.Render(fmt.Sprintf("  ↑ %d more above", startIdx))
+		lines += wrappedLineCount(aboveLine, wrapWidth)
+	}
+
+	return lines
+}
+
+func wrappedLineCount(line string, width int) int {
+	if width < 1 {
+		return 1
+	}
+	lines := 0
+	for _, part := range strings.Split(line, "\n") {
+		if part == "" {
+			lines++
+			continue
+		}
+		partWidth := lipgloss.Width(part)
+		lines += (partWidth + width - 1) / width
+	}
+	if lines == 0 {
+		return 1
+	}
+	return lines
+}
+
+func detailPanelLineCount(wt git.Worktree) int {
+	// Blank line + top border + 5 rows + bottom border.
+	lines := 8
+	if wt.UniqueCommits > 0 {
+		lines++
+	}
+	return lines
 }
 
 // visibleBranchCount returns how many branch items can fit in the viewport.
