@@ -48,8 +48,8 @@ func List() ([]Worktree, error) {
 		return nil, err
 	}
 
-	// Get porcelain output
-	output, err := runGit("worktree", "list", "--porcelain")
+	// Get porcelain output - run from repo root to handle case where CWD was deleted
+	output, err := runGitInDir(repo.MainWorktreeRoot, "worktree", "list", "--porcelain")
 	if err != nil {
 		return nil, fmt.Errorf("failed to list worktrees: %w", err)
 	}
