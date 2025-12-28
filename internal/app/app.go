@@ -858,10 +858,11 @@ func (m Model) handleDeleteConfirmCloseWindowKeys(msg tea.KeyMsg) (tea.Model, te
 	switch msg.Type {
 	case tea.KeyEsc:
 		// Cancel - don't close windows, skip branch deletion too
+		// But still refresh because the worktree was already deleted
 		m.state = StateList
 		m.pendingWindowsClose = nil
 		m.deletedBranch = ""
-		return m, nil
+		return m, refreshWorktrees
 	}
 
 	if msg.String() == "y" || msg.String() == "Y" {
@@ -1083,9 +1084,10 @@ func (m Model) handleDeleteConfirmBranchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	switch msg.Type {
 	case tea.KeyEsc:
 		// Cancel - don't delete branch
+		// But still refresh because the worktree was already deleted
 		m.state = StateList
 		m.deletedBranch = ""
-		return m, nil
+		return m, refreshWorktrees
 	}
 
 	if msg.String() == "y" || msg.String() == "Y" {
@@ -1096,10 +1098,10 @@ func (m Model) handleDeleteConfirmBranchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		return m, deleteBranch(branch)
 	}
 	if msg.String() == "n" || msg.String() == "N" {
-		// Don't delete branch
+		// Don't delete branch, but still refresh because the worktree was already deleted
 		m.state = StateList
 		m.deletedBranch = ""
-		return m, nil
+		return m, refreshWorktrees
 	}
 
 	return m, nil
