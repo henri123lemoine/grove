@@ -192,16 +192,6 @@ Flow:
 
 **File copying**: Automatically copy files matching configured patterns (e.g., `.env*`)
 
-**Post-create hooks**: Run configured commands after creation (e.g., `npm install`)
-
-**Worktree templates**: Pattern-based configuration for different branch types:
-```toml
-[[worktree.templates]]
-pattern = "feature/*"
-copy_patterns = [".env.local"]
-post_create_cmd = ["npm install", "npm run setup"]
-```
-
 #### Delete Worktree
 
 **Tiered safety based on risk:**

@@ -52,15 +52,6 @@ copy_patterns = []
 # File patterns to ignore when copying
 copy_ignores = []
 
-# Commands to run after creating worktree (e.g., ["npm install"])
-post_create_cmd = []
-
-# Timeout for post-create hooks in seconds (0 = no timeout)
-hook_timeout = 300
-
-# Branch-specific templates (see below for examples)
-# [[worktree.templates]]
-
 [safety]
 # Confirm before deleting worktrees with uncommitted changes
 confirm_dirty = true
@@ -225,34 +216,6 @@ confirm_dirty = false
 confirm_unmerged = false
 require_typing_for_unique = false
 ```
-
-## Worktree Templates
-
-You can define templates that apply different settings based on branch patterns:
-
-```toml
-[worktree]
-# Default settings for all worktrees
-copy_patterns = [".env"]
-post_create_cmd = ["npm install"]
-
-# Feature branches get extra setup
-[[worktree.templates]]
-pattern = "feature/*"
-copy_patterns = [".env", ".env.local"]
-post_create_cmd = ["npm install", "npm run setup"]
-
-# Fix branches are lightweight
-[[worktree.templates]]
-pattern = "fix/*"
-copy_patterns = [".env"]
-post_create_cmd = []
-```
-
-Pattern matching supports:
-- `*` matches any characters except `/`
-- `**` matches any characters including `/`
-- `?` matches a single character
 
 ## Layout Presets
 

@@ -88,27 +88,6 @@ type WorktreeConfig struct {
 	// File patterns to ignore when copying (matched against file/directory names)
 	// Uses filepath.Match syntax (*, ?, [abc]). Note: ** is not supported.
 	CopyIgnores []string `toml:"copy_ignores"`
-
-	// Commands to run after creating worktree
-	PostCreateCmd []string `toml:"post_create_cmd"`
-
-	// Timeout for post-create hooks in seconds (0 = no timeout)
-	HookTimeout int `toml:"hook_timeout"`
-
-	// Templates for different branch patterns
-	Templates []TemplateConfig `toml:"templates"`
-}
-
-// TemplateConfig defines a template for specific branch patterns.
-type TemplateConfig struct {
-	// Pattern to match branch names (glob-style)
-	Pattern string `toml:"pattern"`
-
-	// File patterns to copy for this template
-	CopyPatterns []string `toml:"copy_patterns"`
-
-	// Commands to run after creating worktree
-	PostCreateCmd []string `toml:"post_create_cmd"`
 }
 
 // PaneConfig defines a pane in a layout.
@@ -210,11 +189,8 @@ func DefaultConfig() *Config {
 			DeleteBranchAction: "ask",
 		},
 		Worktree: WorktreeConfig{
-			CopyPatterns:  []string{},
-			CopyIgnores:   []string{},
-			PostCreateCmd: []string{},
-			HookTimeout:   300, // 5 minutes default
-			Templates:     []TemplateConfig{},
+			CopyPatterns: []string{},
+			CopyIgnores:  []string{},
 		},
 		Safety: SafetyConfig{
 			ConfirmDirty:           true,
@@ -416,15 +392,7 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("# Directories are copied recursively.\n")
 	b.WriteString("# copy_patterns = [\".env*\"]\n")
 	b.WriteString("# File patterns to ignore when copying (matched against names)\n")
-	b.WriteString("# copy_ignores = [\"node_modules\", \"*.log\"]\n")
-	b.WriteString("# Commands to run after creating worktree\n")
-	b.WriteString("# post_create_cmd = [\"npm install\"]\n\n")
-
-	b.WriteString("# Template example:\n")
-	b.WriteString("# [[worktree.templates]]\n")
-	b.WriteString("# pattern = \"feature/*\"\n")
-	b.WriteString("# copy_patterns = [\".env.local\"]\n")
-	b.WriteString("# post_create_cmd = [\"npm install\", \"npm run setup\"]\n\n")
+	b.WriteString("# copy_ignores = [\"node_modules\", \"*.log\"]\n\n")
 
 	b.WriteString("[safety]\n")
 	b.WriteString("# Confirm before deleting dirty worktrees\n")
@@ -625,47 +593,4 @@ func (c *Config) Validate() []string {
 func extractTemplateVars(s string) []string {
 	re := regexp.MustCompile(`\{[^}]+\}`)
 	return re.FindAllString(s, -1)
-}
-
-// GetTemplateForBranch returns the template that matches the branch name.
-func (c *Config) GetTemplateForBranch(branch string) *TemplateConfig {
-	for i := range c.Worktree.Templates {
-		t := &c.Worktree.Templates[i]
-		if matchGlobPattern(t.Pattern, branch) {
-			return t
-		}
-	}
-	return nil
-}
-
-// matchGlobPattern matches a branch name against a glob pattern.
-func matchGlobPattern(pattern, name string) bool {
-	// Convert glob to regex
-	regexStr := "^"
-	for i := 0; i < len(pattern); i++ {
-		switch pattern[i] {
-		case '*':
-			if i+1 < len(pattern) && pattern[i+1] == '*' {
-				// ** matches anything including /
-				regexStr += ".*"
-				i++
-			} else {
-				// * matches anything except /
-				regexStr += "[^/]*"
-			}
-		case '?':
-			regexStr += "[^/]"
-		case '.', '+', '^', '$', '(', ')', '[', ']', '{', '}', '|', '\\':
-			regexStr += "\\" + string(pattern[i])
-		default:
-			regexStr += string(pattern[i])
-		}
-	}
-	regexStr += "$"
-
-	re, err := regexp.Compile(regexStr)
-	if err != nil {
-		return false
-	}
-	return re.MatchString(name)
 }

@@ -76,11 +76,6 @@ type FileCopyCompletedMsg struct {
 	Err error
 }
 
-// PostCreateHooksCompletedMsg is sent when post-create hooks complete.
-type PostCreateHooksCompletedMsg struct {
-	Err error
-}
-
 // PruneCompletedMsg is sent when worktree pruning completes.
 type PruneCompletedMsg struct {
 	PrunedCount int

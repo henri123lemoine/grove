@@ -2,15 +2,12 @@ package git
 
 import (
 	"bufio"
-	"context"
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 )
 
 // Worktree represents a Git worktree with its status.
@@ -440,19 +437,6 @@ func copyDir(src, dst string, ignores []string) error {
 	return nil
 }
 
-// RunPostCreateHooks runs post-create commands in the worktree directory.
-// Note: Commands run without stdin access since grove is a TUI application.
-// Use non-interactive commands (e.g., "npm install --yes" instead of "npm install").
-// timeoutSeconds of 0 means no timeout.
-func RunPostCreateHooks(worktreePath string, commands []string, timeoutSeconds int) error {
-	for _, cmdStr := range commands {
-		if err := runHookCommand(worktreePath, cmdStr, timeoutSeconds); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // Prune removes stale worktree entries (worktrees that no longer exist on disk).
 // Returns the number of pruned entries.
 func Prune() (int, error) {
@@ -482,40 +466,6 @@ func countWorktrees(output string) int {
 		}
 	}
 	return count
-}
-
-// runHookCommand runs a single hook command with optional timeout.
-func runHookCommand(worktreePath, cmdStr string, timeoutSeconds int) error {
-	var ctx context.Context
-	var cancel context.CancelFunc
-
-	if timeoutSeconds > 0 {
-		ctx, cancel = context.WithTimeout(context.Background(), time.Duration(timeoutSeconds)*time.Second)
-		defer cancel()
-	} else {
-		ctx = context.Background()
-	}
-
-	cmd := exec.CommandContext(ctx, "sh", "-c", cmdStr)
-	cmd.Dir = worktreePath
-
-	// Capture output for better error messages
-	// stdin is nil - interactive commands won't work
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		outputStr := strings.TrimSpace(string(output))
-
-		// Check if it was a timeout (context deadline exceeded)
-		if ctx.Err() == context.DeadlineExceeded {
-			return fmt.Errorf("post-create command timed out after %ds: %s", timeoutSeconds, cmdStr)
-		}
-
-		if outputStr != "" {
-			return fmt.Errorf("post-create command failed: %s: %w\nOutput: %s", cmdStr, err, outputStr)
-		}
-		return fmt.Errorf("post-create command failed: %s: %w", cmdStr, err)
-	}
-	return nil
 }
 
 // resolvePath returns the absolute path with symlinks resolved.

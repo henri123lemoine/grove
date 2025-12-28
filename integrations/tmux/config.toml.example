@@ -31,9 +31,6 @@ window_name_style = "short"
 # Copy these files to new worktrees
 # copy_patterns = [".env.local", ".vscode/settings.json"]
 
-# Run these commands after creating worktree
-# post_create_cmd = ["npm install"]
-
 [safety]
 confirm_dirty = true
 confirm_unmerged = true

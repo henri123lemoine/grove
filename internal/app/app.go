@@ -341,7 +341,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err == nil && msg.Path != "" {
 			cmds := []tea.Cmd{
 				loadWorktrees,
-				runPostCreateOperations(m.config, msg.Path, msg.Branch),
+				runPostCreateOperations(m.config, msg.Path),
 			}
 			// Auto-open the worktree if configured
 			if m.config.Open.OpenAfterCreate {
@@ -449,13 +449,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			// Show error to user with clear context
 			m.err = fmt.Errorf("file copy failed: %w", msg.Err)
-		}
-		return m, nil
-
-	case PostCreateHooksCompletedMsg:
-		if msg.Err != nil {
-			// Show error to user with clear context
-			m.err = fmt.Errorf("post-create hook failed: %w", msg.Err)
 		}
 		return m, nil
 
@@ -1443,44 +1436,20 @@ func dropStash(worktreePath string, index int) tea.Cmd {
 	}
 }
 
-func runPostCreateOperations(cfg *config.Config, path, branch string) tea.Cmd {
+func runPostCreateOperations(cfg *config.Config, path string) tea.Cmd {
 	return func() tea.Msg {
-		// Check for template match
-		template := cfg.GetTemplateForBranch(branch)
-
-		// Determine patterns to use
-		copyPatterns := cfg.Worktree.CopyPatterns
-		postCreateCmd := cfg.Worktree.PostCreateCmd
-
-		if template != nil {
-			if len(template.CopyPatterns) > 0 {
-				copyPatterns = template.CopyPatterns
-			}
-			if len(template.PostCreateCmd) > 0 {
-				postCreateCmd = template.PostCreateCmd
-			}
-		}
-
-		// Copy files
-		if len(copyPatterns) > 0 {
+		// Copy files if patterns are configured
+		if len(cfg.Worktree.CopyPatterns) > 0 {
 			repo, _ := git.GetRepo()
 			if repo != nil {
-				err := git.CopyFiles(repo.MainWorktreeRoot, path, copyPatterns, cfg.Worktree.CopyIgnores)
+				err := git.CopyFiles(repo.MainWorktreeRoot, path, cfg.Worktree.CopyPatterns, cfg.Worktree.CopyIgnores)
 				if err != nil {
-					return PostCreateHooksCompletedMsg{Err: err}
+					return FileCopyCompletedMsg{Err: err}
 				}
 			}
 		}
 
-		// Run post-create commands
-		if len(postCreateCmd) > 0 {
-			err := git.RunPostCreateHooks(path, postCreateCmd, cfg.Worktree.HookTimeout)
-			if err != nil {
-				return PostCreateHooksCompletedMsg{Err: err}
-			}
-		}
-
-		return PostCreateHooksCompletedMsg{Err: nil}
+		return FileCopyCompletedMsg{Err: nil}
 	}
 }
 
