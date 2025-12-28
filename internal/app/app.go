@@ -970,12 +970,15 @@ func (m Model) handleStashKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.stashWorktree = nil
 		m.stashEntries = nil
 		return m, nil
-	case tea.KeyUp:
+	}
+
+	switch {
+	case key.Matches(msg, m.keys.Up):
 		if m.stashCursor > 0 {
 			m.stashCursor--
 		}
 		return m, nil
-	case tea.KeyDown:
+	case key.Matches(msg, m.keys.Down):
 		if m.stashCursor < len(m.stashEntries)-1 {
 			m.stashCursor++
 		}
@@ -1014,16 +1017,6 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state = StateList
 		m.layoutWorktree = nil
 		return m, nil
-	case tea.KeyUp:
-		if m.layoutCursor > 0 {
-			m.layoutCursor--
-		}
-		return m, nil
-	case tea.KeyDown:
-		if m.layoutCursor < numOptions-1 {
-			m.layoutCursor++
-		}
-		return m, nil
 	case tea.KeyEnter:
 		// Find current worktree for stash_on_switch
 		var currentWt *git.Worktree
@@ -1044,6 +1037,19 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.state = StateList
 		m.layoutWorktree = nil
 		return m, openWorktree(m.config, wt, currentWt, selectedLayout)
+	}
+
+	switch {
+	case key.Matches(msg, m.keys.Up):
+		if m.layoutCursor > 0 {
+			m.layoutCursor--
+		}
+		return m, nil
+	case key.Matches(msg, m.keys.Down):
+		if m.layoutCursor < numOptions-1 {
+			m.layoutCursor++
+		}
+		return m, nil
 	}
 
 	return m, nil
