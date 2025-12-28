@@ -1,9 +1,6 @@
 # TODO
 
-- Prune
-    - [x] **Confirmation before prune**: Prune runs immediately without confirmation
-    - [x] **Visual feedback after prune**: Show how many entries were pruned
-- [x] **Delete branch after worktree deletion**: Option to also delete the branch when removing worktree
-- [x] **Sorting options for worktree list**: Sort by name, date, dirty status, etc.
-- [x] **Create worktree at specific commit/tag**: Currently only supports branches
-- [x] **Shell quoting for paths with spaces**: Template expansion doesn't quote paths
+- [ ] Creating a new worktree in the popup should create a new window
+    Or is this already an option I haven't set properly?
+- [ ] Associatedly, if I select a worktree that exists but for which a tmux window doesn't exist, it seems to do nothing, rather than creating a tmux window and going there.
+- [ ] Is the layout functionality working at all?
