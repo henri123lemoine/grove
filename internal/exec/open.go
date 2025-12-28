@@ -180,6 +180,23 @@ func findWindowByName(name string) string {
 	return ""
 }
 
+// WindowExistsFor checks if a window already exists for the given worktree
+// based on the config's detect_existing setting.
+func WindowExistsFor(cfg *config.Config, wt *git.Worktree) bool {
+	switch cfg.Open.DetectExisting {
+	case "path":
+		return findWindowByPath(wt.Path) != ""
+	case "name":
+		windowName := wt.BranchShort()
+		if cfg.Open.WindowNameStyle == "full" {
+			windowName = wt.Branch
+		}
+		return findWindowByName(windowName) != ""
+	default:
+		return false
+	}
+}
+
 // applyLayout applies the configured layout after creating a new window (legacy system).
 func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
 	inTmux := os.Getenv("TMUX") != ""

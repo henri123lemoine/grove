@@ -642,15 +642,15 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			wt := &m.filteredWorktrees[m.cursor]
 			m.selectedWorktree = wt
 
-			// If layouts are defined, show layout selector
-			if len(m.config.Layouts) > 0 {
+			// If layouts are defined and no window already exists, show layout selector
+			if len(m.config.Layouts) > 0 && !exec.WindowExistsFor(m.config, wt) {
 				m.layoutWorktree = wt
 				m.layoutCursor = 0
 				m.state = StateSelectLayout
 				return m, nil
 			}
 
-			// No layouts, open directly
+			// No layouts or window already exists, open directly
 			var currentWt *git.Worktree
 			for i := range m.worktrees {
 				if m.worktrees[i].IsCurrent {
