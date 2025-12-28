@@ -6,8 +6,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/henrilemoine/grove/internal/config"
-	"github.com/henrilemoine/grove/internal/git"
+	"github.com/henri123lemoine/grove/internal/config"
+	"github.com/henri123lemoine/grove/internal/git"
 )
 
 func TestNewModel(t *testing.T) {

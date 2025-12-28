@@ -16,7 +16,7 @@ A terminal UI for managing Git worktrees.
 ## Installation
 
 ```bash
-go install github.com/henrilemoine/grove/cmd/grove@latest
+go install github.com/henri123lemoine/grove/cmd/grove@latest
 ```
 
 ## Quick Start

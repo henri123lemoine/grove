@@ -7,10 +7,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/henrilemoine/grove/internal/app"
-	"github.com/henrilemoine/grove/internal/config"
-	"github.com/henrilemoine/grove/internal/git"
-	"github.com/henrilemoine/grove/internal/ui"
+	"github.com/henri123lemoine/grove/internal/app"
+	"github.com/henri123lemoine/grove/internal/config"
+	"github.com/henri123lemoine/grove/internal/git"
+	"github.com/henri123lemoine/grove/internal/ui"
 )
 
 var (
@@ -130,5 +130,5 @@ General:
 Configuration:
   Config file: ~/.config/grove/config.toml
 
-For more information, see https://github.com/henrilemoine/grove`)
+For more information, see https://github.com/henri123lemoine/grove`)
 }

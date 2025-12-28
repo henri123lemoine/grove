@@ -10,7 +10,7 @@
 ### Go Install (Recommended)
 
 ```bash
-go install github.com/henrilemoine/grove/cmd/grove@latest
+go install github.com/henri123lemoine/grove/cmd/grove@latest
 ```
 
 Make sure `$GOPATH/bin` is in your `PATH`.
@@ -18,7 +18,7 @@ Make sure `$GOPATH/bin` is in your `PATH`.
 ### Build from Source
 
 ```bash
-git clone https://github.com/henrilemoine/grove.git
+git clone https://github.com/henri123lemoine/grove.git
 cd grove
 go build -o grove ./cmd/grove
 sudo mv grove /usr/local/bin/
@@ -41,5 +41,5 @@ Grove doesn't require shell completion as it's a TUI application. Simply run `gr
 ## Updating
 
 ```bash
-go install github.com/henrilemoine/grove/cmd/grove@latest
+go install github.com/henri123lemoine/grove/cmd/grove@latest
 ```

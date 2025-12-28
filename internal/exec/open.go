@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/henrilemoine/grove/internal/config"
-	"github.com/henrilemoine/grove/internal/git"
+	"github.com/henri123lemoine/grove/internal/config"
+	"github.com/henri123lemoine/grove/internal/git"
 )
 
 // Open executes the open command for a worktree.

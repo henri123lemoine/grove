@@ -3,8 +3,8 @@ package exec
 import (
 	"testing"
 
-	"github.com/henrilemoine/grove/internal/config"
-	"github.com/henrilemoine/grove/internal/git"
+	"github.com/henri123lemoine/grove/internal/config"
+	"github.com/henri123lemoine/grove/internal/git"
 )
 
 func TestExpandTemplate(t *testing.T) {
