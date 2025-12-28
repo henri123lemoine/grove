@@ -230,6 +230,11 @@ func Remove(path string, force bool) error {
 	// Clean up empty parent directories (rmdir-like behavior)
 	cleanupEmptyParentDirs(path)
 
+	// Immediately update the cache so it reflects the deletion.
+	// This is important because if the window is closed after deletion,
+	// we want the next grove instance to see the correct state.
+	_, _ = ListAndCache()
+
 	return nil
 }
 

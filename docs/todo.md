@@ -6,5 +6,4 @@
     Fixed: Improved error handling to catch and display errors from tmux commands.
 - [x] Is the layout functionality working at all?
     Fixed: Layouts were applied to wrong window (grove's window). Now targets new window by name.
-- [x] Rare behaviour where there seems to be a remaining ~cached(?) version of the worktree name right after it's been deleted. like when you run the popup, you might be over testing2 worktree. but if within the popup you delete it, it naturally moves you to another tmux window, and it behaves kinda weirdly, where you esc the popup and it brings you to the main display of grove but with testing2 still there. if you close the popup and reopen it though, it's gone.
-    Fixed: After deletion, now force a fresh data fetch instead of using stale cache.
+- [ ] Rare behaviour where there seems to be a remaining ~cached(?) version of the worktree name right after it's been deleted. like when you run the popup, you might be over testing2 worktree. but if within the popup you delete it, it naturally moves you to another tmux window, and it behaves kinda weirdly, where you esc the popup and it brings you to the main display of grove but with testing2 still there. if you close the popup and reopen it though, it's gone.
