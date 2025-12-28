@@ -86,6 +86,18 @@ func ParseSortMode(s string) SortMode {
 	}
 }
 
+// isConfirmKey returns true if the key is a confirmation key (y/Y).
+func isConfirmKey(msg tea.KeyMsg) bool {
+	s := msg.String()
+	return s == "y" || s == "Y"
+}
+
+// isDenyKey returns true if the key is a denial key (n/N).
+func isDenyKey(msg tea.KeyMsg) bool {
+	s := msg.String()
+	return s == "n" || s == "N"
+}
+
 // Model is the main application model.
 type Model struct {
 	// Configuration
@@ -857,11 +869,11 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// For safe/warning (and danger without RequireTypingForUnique), y confirms, n cancels
-	if msg.String() == "y" || msg.String() == "Y" {
+	if isConfirmKey(msg) {
 		force := m.safetyInfo.HasUncommittedChanges
 		return m, deleteWorktree(m.deleteWorktree.Path, force)
 	}
-	if msg.String() == "n" || msg.String() == "N" {
+	if isDenyKey(msg) {
 		m.state = StateList
 		m.deleteInput.Reset()
 		m.deleteWorktree = nil
@@ -884,7 +896,7 @@ func (m Model) handleDeleteConfirmCloseWindowKeys(msg tea.KeyMsg) (tea.Model, te
 		return m, refreshWorktrees
 	}
 
-	if msg.String() == "y" || msg.String() == "Y" {
+	if isConfirmKey(msg) {
 		// Close the windows/tabs
 		for _, w := range m.pendingWindowsClose {
 			_ = exec.CloseWindow(w)
@@ -893,7 +905,7 @@ func (m Model) handleDeleteConfirmCloseWindowKeys(msg tea.KeyMsg) (tea.Model, te
 		// Continue to branch deletion prompt
 		return m.handleBranchDeletionPrompt()
 	}
-	if msg.String() == "n" || msg.String() == "N" {
+	if isDenyKey(msg) {
 		// Don't close windows, but still check branch deletion
 		m.pendingWindowsClose = nil
 		return m.handleBranchDeletionPrompt()
@@ -983,6 +995,14 @@ func (m Model) handleStashKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.stashCursor++
 		}
 		return m, nil
+	case key.Matches(msg, m.keys.Home):
+		m.stashCursor = 0
+		return m, nil
+	case key.Matches(msg, m.keys.End):
+		if len(m.stashEntries) > 0 {
+			m.stashCursor = len(m.stashEntries) - 1
+		}
+		return m, nil
 	}
 
 	// Check for action keys
@@ -1050,6 +1070,12 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.layoutCursor++
 		}
 		return m, nil
+	case key.Matches(msg, m.keys.Home):
+		m.layoutCursor = 0
+		return m, nil
+	case key.Matches(msg, m.keys.End):
+		m.layoutCursor = numOptions - 1
+		return m, nil
 	}
 
 	return m, nil
@@ -1060,16 +1086,17 @@ func (m Model) handlePruneConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc:
 		m.state = StateList
 		return m, nil
-	case tea.KeyRunes:
-		switch string(msg.Runes) {
-		case "y", "Y":
-			m.state = StateList
-			return m, pruneWorktrees
-		case "n", "N":
-			m.state = StateList
-			return m, nil
-		}
 	}
+
+	if isConfirmKey(msg) {
+		m.state = StateList
+		return m, pruneWorktrees
+	}
+	if isDenyKey(msg) {
+		m.state = StateList
+		return m, nil
+	}
+
 	return m, nil
 }
 
@@ -1115,14 +1142,14 @@ func (m Model) handleDeleteConfirmBranchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		return m, refreshWorktrees
 	}
 
-	if msg.String() == "y" || msg.String() == "Y" {
+	if isConfirmKey(msg) {
 		// Delete the branch
 		branch := m.deletedBranch
 		m.state = StateList
 		m.deletedBranch = ""
 		return m, deleteBranch(branch)
 	}
-	if msg.String() == "n" || msg.String() == "N" {
+	if isDenyKey(msg) {
 		// Don't delete branch, but still refresh because the worktree was already deleted
 		m.state = StateList
 		m.deletedBranch = ""
