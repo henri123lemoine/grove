@@ -190,12 +190,19 @@ func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
 		return nil
 	}
 
+	// Determine window name to target (the newly created window)
+	windowName := wt.BranchShort()
+	if cfg.Open.WindowNameStyle == "full" {
+		windowName = wt.Branch
+	}
+
 	var layoutCmd string
 	switch cfg.Open.Layout {
 	case "dev":
 		// Default dev layout: split horizontally 50/50
 		if inTmux {
-			layoutCmd = "tmux split-window -h -p 50 -c " + shellQuote(wt.Path)
+			// Target the new window by name to split the correct window
+			layoutCmd = "tmux split-window -h -p 50 -t " + shellQuote(windowName) + " -c " + shellQuote(wt.Path)
 		} else if inZellij {
 			layoutCmd = "zellij action new-pane --direction right --cwd " + shellQuote(wt.Path)
 		}
@@ -226,17 +233,28 @@ func applyNamedLayout(layout *config.LayoutConfig, wt *git.Worktree, repo *git.R
 		return nil
 	}
 
+	// Determine window name to target (the newly created window)
+	windowName := wt.BranchShort()
+	if cfg.Open.WindowNameStyle == "full" {
+		windowName = wt.Branch
+	}
+
 	// Track pane IDs as we create them
 	// Pane 0 is the initial pane (already exists in the new window)
 	paneIDs := make([]string, len(layout.Panes))
 
-	// Get the current pane ID (pane 0)
-	cmd := exec.Command("tmux", "display-message", "-p", "#{pane_id}")
+	// Get the pane ID of the newly created window (target by name)
+	// We need to find the first pane in the window with the matching name
+	cmd := exec.Command("tmux", "list-panes", "-t", windowName, "-F", "#{pane_id}")
 	output, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("failed to get current pane ID: %w", err)
+		return fmt.Errorf("failed to get pane ID for window %s: %w", windowName, err)
 	}
-	paneIDs[0] = strings.TrimSpace(string(output))
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 0 || lines[0] == "" {
+		return fmt.Errorf("no panes found in window %s", windowName)
+	}
+	paneIDs[0] = lines[0]
 
 	// Run command for pane 0 if specified
 	if len(layout.Panes) > 0 && layout.Panes[0].Command != "" {
