@@ -168,14 +168,27 @@ type KeysConfig struct {
 }
 
 // DefaultConfig returns the default configuration.
+// It auto-detects the terminal multiplexer to set appropriate defaults.
 func DefaultConfig() *Config {
+	// Auto-detect terminal multiplexer for default open command
+	var openCommand string
+	switch DetectEnvironment() {
+	case "tmux":
+		openCommand = "tmux new-window -n {branch_short} -c {path}"
+	case "zellij":
+		openCommand = "zellij action new-tab --name {branch_short} --cwd {path}"
+	default:
+		// No multiplexer detected - leave empty so user must configure
+		openCommand = ""
+	}
+
 	return &Config{
 		General: GeneralConfig{
 			DefaultBaseBranch: "main",
 			WorktreeDir:       ".worktrees",
 		},
 		Open: OpenConfig{
-			Command:         "tmux new-window -n {branch_short} -c {path}",
+			Command:         openCommand,
 			DetectExisting:  "path",
 			ExitAfterOpen:   true,
 			OpenAfterCreate: true,
