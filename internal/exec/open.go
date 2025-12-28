@@ -2,6 +2,7 @@
 package exec
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -91,18 +92,25 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutC
 	expanded := expandTemplate(cfg.Open.Command, wt, repo, cfg)
 
 	cmd := exec.Command("sh", "-c", expanded)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
 	cmd.Stdin = nil
 
-	if err := cmd.Start(); err != nil {
-		return false, err
+	// Capture stderr for better error messages
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	// Use Run() instead of Start() to wait for completion and catch errors
+	// This is safe because tmux/zellij commands complete quickly (they just
+	// create the window/tab and return, they don't wait for the shell)
+	if err := cmd.Run(); err != nil {
+		errMsg := stderr.String()
+		if errMsg != "" {
+			return false, fmt.Errorf("open command failed: %w: %s", err, strings.TrimSpace(errMsg))
+		}
+		return false, fmt.Errorf("open command failed: %w", err)
 	}
 
 	// Apply named layout if provided
 	if isNewWindow && layout != nil {
-		// Small delay to ensure tmux window is ready
-		time.Sleep(100 * time.Millisecond)
 		// Layout errors are non-fatal - we still opened the window successfully
 		_ = applyNamedLayout(layout, wt, repo, cfg)
 	} else if isNewWindow && cfg.Open.Layout != "none" && cfg.Open.Layout != "" {
