@@ -1,11 +1,16 @@
 package git
 
 import (
+	"flag"
 	"os"
 	"sync"
 	"testing"
 	"time"
 )
+
+const benchRepoPathEnv = "GROVE_BENCH_PATH"
+
+var benchRepoPathFlag = flag.String("bench-repo-path", "", "path to a git repo with worktrees for performance tests")
 
 func BenchmarkListWorktrees(b *testing.B) {
 	// Skip if not in a git repo
@@ -23,10 +28,18 @@ func BenchmarkListWorktrees(b *testing.B) {
 }
 
 func TestListPerformance(t *testing.T) {
-	// Test with benchrepo if available
-	benchrepoPath := "/path/to/bench/repo"
-	if _, err := os.Stat(benchrepoPath); os.IsNotExist(err) {
-		t.Skip("benchrepo not available")
+	benchRepoPath := *benchRepoPathFlag
+	if benchRepoPath == "" {
+		benchRepoPath = os.Getenv(benchRepoPathEnv)
+	}
+	if benchRepoPath == "" {
+		t.Skip("set GROVE_BENCH_PATH or pass -bench-repo-path (via -args) to run this test")
+	}
+	if _, err := os.Stat(benchRepoPath); err != nil {
+		if os.IsNotExist(err) {
+			t.Skip("bench repo not available")
+		}
+		t.Fatalf("Failed to stat bench repo path: %v", err)
 	}
 
 	originalDir, err := os.Getwd()
@@ -38,8 +51,8 @@ func TestListPerformance(t *testing.T) {
 		ResetRepo() // Reset cached repo
 	}()
 
-	if err := os.Chdir(benchrepoPath); err != nil {
-		t.Fatalf("Failed to change to benchrepo directory: %v", err)
+	if err := os.Chdir(benchRepoPath); err != nil {
+		t.Fatalf("Failed to change to bench repo directory: %v", err)
 	}
 
 	// Reset any cached state
