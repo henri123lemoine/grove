@@ -47,6 +47,9 @@ type OpenConfig struct {
 	// Whether to exit grove after opening
 	ExitAfterOpen bool `toml:"exit_after_open"`
 
+	// Whether to open the worktree after creating it
+	OpenAfterCreate bool `toml:"open_after_create"`
+
 	// Layout to apply after creating new window: "none", "dev", or "custom"
 	Layout string `toml:"layout"`
 
@@ -196,6 +199,7 @@ func DefaultConfig() *Config {
 			Command:         "tmux new-window -n {branch_short} -c {path}",
 			DetectExisting:  "path",
 			ExitAfterOpen:   true,
+			OpenAfterCreate: true,
 			Layout:          "none",
 			LayoutCommand:   "",
 			WindowNameStyle: "short",
@@ -371,6 +375,8 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("detect_existing = \"name\"\n")
 	b.WriteString("# Whether to exit grove after opening\n")
 	b.WriteString("exit_after_open = true\n")
+	b.WriteString("# Whether to open the worktree after creating it\n")
+	b.WriteString("open_after_create = true\n")
 	b.WriteString("# Layout to apply after creating new window: \"none\", \"dev\", or \"custom\"\n")
 	b.WriteString("layout = \"none\"\n")
 	b.WriteString("# Custom layout command (only if layout = \"custom\")\n")

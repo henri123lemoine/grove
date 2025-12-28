@@ -325,12 +325,29 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.state = StateList
 		m.createInput.Reset()
-		// Run post-create operations
+		// Run post-create operations and optionally open the worktree
 		if msg.Err == nil && msg.Path != "" {
-			return m, tea.Batch(
+			cmds := []tea.Cmd{
 				loadWorktrees,
 				runPostCreateOperations(m.config, msg.Path, msg.Branch),
-			)
+			}
+			// Auto-open the worktree if configured
+			if m.config.Open.OpenAfterCreate {
+				newWt := &git.Worktree{
+					Path:   msg.Path,
+					Branch: msg.Branch,
+				}
+				// Find current worktree for stash_on_switch
+				var currentWt *git.Worktree
+				for i := range m.worktrees {
+					if m.worktrees[i].IsCurrent {
+						currentWt = &m.worktrees[i]
+						break
+					}
+				}
+				cmds = append(cmds, openWorktree(m.config, newWt, currentWt, nil))
+			}
+			return m, tea.Batch(cmds...)
 		}
 		return m, loadWorktrees
 
