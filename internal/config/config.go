@@ -261,10 +261,21 @@ func (c *Config) GetLayoutByName(name string) *LayoutConfig {
 }
 
 // ConfigPath returns the path to the config file.
+// Uses ~/.config/grove/config.toml (XDG style) on all Unix systems.
 func ConfigPath() string {
+	// Respect XDG_CONFIG_HOME if set
+	if xdgConfig := os.Getenv("XDG_CONFIG_HOME"); xdgConfig != "" {
+		return filepath.Join(xdgConfig, "grove", "config.toml")
+	}
+	// Default to ~/.config on Unix (including macOS)
+	home := os.Getenv("HOME")
+	if home != "" {
+		return filepath.Join(home, ".config", "grove", "config.toml")
+	}
+	// Fallback to os.UserConfigDir() for Windows
 	configDir, err := os.UserConfigDir()
 	if err != nil {
-		configDir = os.Getenv("HOME")
+		return filepath.Join(".", "grove", "config.toml")
 	}
 	return filepath.Join(configDir, "grove", "config.toml")
 }

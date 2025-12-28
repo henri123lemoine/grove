@@ -324,7 +324,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			m.err = msg.Err
 		}
-		m.state = StateList
 		m.createInput.Reset()
 		// Run post-create operations and optionally open the worktree
 		if msg.Err == nil && msg.Path != "" {
@@ -338,6 +337,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					Path:   msg.Path,
 					Branch: msg.Branch,
 				}
+				// If layouts are defined, show layout selector
+				if len(m.config.Layouts) > 0 {
+					m.layoutWorktree = newWt
+					m.layoutCursor = 0
+					m.state = StateSelectLayout
+					return m, tea.Batch(cmds...)
+				}
+				// No layouts, open directly
+				m.state = StateList
 				// Find current worktree for stash_on_switch
 				var currentWt *git.Worktree
 				for i := range m.worktrees {
@@ -347,9 +355,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 				}
 				cmds = append(cmds, openWorktree(m.config, newWt, currentWt, nil))
+			} else {
+				m.state = StateList
 			}
 			return m, tea.Batch(cmds...)
 		}
+		m.state = StateList
 		return m, loadWorktrees
 
 	case WorktreeDeletedMsg:

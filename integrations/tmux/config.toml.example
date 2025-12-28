@@ -1,5 +1,5 @@
 # Grove Configuration for tmux users
-# Copy to ~/.config/grove/config.toml
+# Copy to: ~/.config/grove/config.toml
 
 [general]
 default_base_branch = "main"
@@ -51,3 +51,65 @@ up = "up,k"
 down = "down,j"
 home = "home,g"
 end = "end,G"
+
+# =============================================================================
+# LAYOUTS
+# =============================================================================
+# Named layouts let you set up your preferred pane arrangement when opening
+# a worktree. When layouts are defined, grove prompts you to select one.
+#
+# How it works:
+# - Pane 0 is the initial window (created by open.command)
+# - Subsequent panes split from existing panes
+# - Directions: "right", "down", "left", "up"
+# - Size is the percentage the NEW pane takes (1-99)
+# - Commands support template variables: {path}, {branch}, {branch_short}, {repo}
+#
+# Example: dev-claude layout
+# ┌─────────────┬─────────────┐
+# │   nvim      │             │
+# │  (pane 0)   │   claude    │
+# │   2/3       │  (pane 1)   │
+# ├─────────────┤    50%      │
+# │  shell      │             │
+# │  (pane 2)   │             │
+# └─────────────┴─────────────┘
+
+[[layouts]]
+name = "dev-claude"
+description = "nvim + claude AI assistant"
+panes = [
+  { command = "nvim" },
+  { split_from = 0, direction = "right", size = 50, command = "claude" },
+  { split_from = 0, direction = "down", size = 33, command = "" }
+]
+
+# Example: simple 50/50 split
+# ┌─────────────┬─────────────┐
+# │   editor    │   shell     │
+# │  (pane 0)   │  (pane 1)   │
+# └─────────────┴─────────────┘
+#
+# [[layouts]]
+# name = "split"
+# description = "50/50 editor + shell"
+# panes = [
+#   { command = "nvim" },
+#   { split_from = 0, direction = "right", size = 50, command = "" }
+# ]
+
+# Example: IDE-style with file tree
+# ┌──────┬──────────────────────┐
+# │      │        editor        │
+# │ tree ├──────────────────────┤
+# │      │       terminal       │
+# └──────┴──────────────────────┘
+#
+# [[layouts]]
+# name = "ide"
+# description = "File tree + editor + terminal"
+# panes = [
+#   { command = "" },
+#   { split_from = 0, direction = "right", size = 80, command = "nvim" },
+#   { split_from = 1, direction = "down", size = 30, command = "" }
+# ]
