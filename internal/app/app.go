@@ -359,7 +359,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.deleteWorktree = nil
 			m.safetyInfo = nil
 			m.deletedBranch = ""
-			return m, loadWorktrees
+			return m, refreshWorktrees
 		}
 
 		// Store the branch name for potential deletion
@@ -516,7 +516,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.Err != nil {
 			m.err = msg.Err
 		}
-		return m, loadWorktrees
+		// Use refreshWorktrees to get fresh data after branch deletion
+		return m, refreshWorktrees
 	}
 
 	return m, nil
@@ -1056,7 +1057,8 @@ func (m Model) handleBranchDeletionPrompt() (tea.Model, tea.Cmd) {
 	// Skip if no branch to delete or if it's the default branch
 	if m.deletedBranch == "" || m.deletedBranch == m.repo.DefaultBranch {
 		m.deletedBranch = ""
-		return m, loadWorktrees
+		// Use refreshWorktrees to get fresh data after deletion
+		return m, refreshWorktrees
 	}
 
 	switch m.config.Delete.DeleteBranchAction {
@@ -1068,10 +1070,12 @@ func (m Model) handleBranchDeletionPrompt() (tea.Model, tea.Cmd) {
 	case "ask":
 		// Prompt user
 		m.state = StateDeleteConfirmBranch
-		return m, loadWorktrees
+		// Use refreshWorktrees to get fresh data after deletion
+		return m, refreshWorktrees
 	default: // "never" or any other value
 		m.deletedBranch = ""
-		return m, loadWorktrees
+		// Use refreshWorktrees to get fresh data after deletion
+		return m, refreshWorktrees
 	}
 }
 
