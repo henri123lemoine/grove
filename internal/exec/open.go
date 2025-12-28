@@ -88,8 +88,17 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutC
 		// Always create new window
 	}
 
+	// Get the open command - use config if set, otherwise auto-detect
+	openCommand := cfg.Open.Command
+	if openCommand == "" {
+		openCommand = GetDefaultOpenCommand()
+		if openCommand == "" {
+			return false, fmt.Errorf("no terminal multiplexer detected and no open command configured")
+		}
+	}
+
 	// Expand and run the open command
-	expanded := expandTemplate(cfg.Open.Command, wt, repo, cfg)
+	expanded := expandTemplate(openCommand, wt, repo, cfg)
 
 	cmd := exec.Command("sh", "-c", expanded)
 	cmd.Stdin = nil
@@ -121,50 +130,71 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutC
 	return isNewWindow, nil
 }
 
-// findWindowByPath finds a tmux window by checking all panes across all windows.
+// findWindowByPath finds a window/tab by checking pane paths.
+// Returns window/tab ID or empty string if not found.
 func findWindowByPath(path string) string {
-	// Check if we're in tmux
-	if os.Getenv("TMUX") == "" {
+	switch GetMultiplexer() {
+	case MultiplexerTmux:
+		return findTmuxWindowByPath(path)
+	case MultiplexerZellij:
+		// Zellij doesn't expose pane CWDs, so we can't detect by path.
+		// Fall back to name-based detection using directory name.
+		return findZellijTabByName(filepath.Base(path))
+	default:
 		return ""
 	}
+}
 
-	// List ALL panes across ALL windows
+// findTmuxWindowByPath finds a tmux window by checking all panes.
+func findTmuxWindowByPath(path string) string {
 	cmd := exec.Command("tmux", "list-panes", "-a", "-F", "#{window_id} #{pane_current_path}")
 	output, err := cmd.Output()
 	if err != nil {
 		return ""
 	}
 
-	// Find window with matching path (resolve symlinks for reliable comparison)
 	resolvedPath := resolvePath(path)
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) == 2 {
 			windowID := parts[0]
 			panePath := resolvePath(parts[1])
-			// Check for exact match or if pane is within the worktree
 			if panePath == resolvedPath || strings.HasPrefix(panePath, resolvedPath+string(filepath.Separator)) {
 				return windowID
 			}
 		}
 	}
-
 	return ""
 }
 
-// switchToWindow switches to a tmux window by ID.
+// switchToWindow switches to a window/tab by ID.
 func switchToWindow(windowID string) error {
-	cmd := exec.Command("tmux", "select-window", "-t", windowID)
-	return cmd.Run()
+	switch GetMultiplexer() {
+	case MultiplexerTmux:
+		cmd := exec.Command("tmux", "select-window", "-t", windowID)
+		return cmd.Run()
+	case MultiplexerZellij:
+		cmd := exec.Command("zellij", "action", "go-to-tab", windowID)
+		return cmd.Run()
+	default:
+		return nil
+	}
 }
 
-// findWindowByName finds a tmux window by name and returns its ID.
+// findWindowByName finds a window/tab by name and returns its ID.
 func findWindowByName(name string) string {
-	if os.Getenv("TMUX") == "" {
+	switch GetMultiplexer() {
+	case MultiplexerTmux:
+		return findTmuxWindowByName(name)
+	case MultiplexerZellij:
+		return findZellijTabByName(name)
+	default:
 		return ""
 	}
+}
 
-	// List all windows with their IDs and names
+// findTmuxWindowByName finds a tmux window by name.
+func findTmuxWindowByName(name string) string {
 	cmd := exec.Command("tmux", "list-windows", "-F", "#{window_id} #{window_name}")
 	output, err := cmd.Output()
 	if err != nil {
@@ -175,6 +205,23 @@ func findWindowByName(name string) string {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) == 2 && strings.TrimSpace(parts[1]) == name {
 			return parts[0]
+		}
+	}
+	return ""
+}
+
+// findZellijTabByName finds a zellij tab by name and returns its 1-based index.
+func findZellijTabByName(name string) string {
+	cmd := exec.Command("zellij", "action", "query-tab-names")
+	output, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for i, line := range lines {
+		if strings.TrimSpace(line) == name {
+			return fmt.Sprintf("%d", i+1) // Zellij uses 1-based indices
 		}
 	}
 	return ""
@@ -241,15 +288,22 @@ func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
 
 // applyNamedLayout applies a named layout with multiple panes.
 func applyNamedLayout(layout *config.LayoutConfig, wt *git.Worktree, repo *git.Repo, cfg *config.Config) error {
-	// Only tmux is supported
-	if os.Getenv("TMUX") == "" {
-		return nil
-	}
-
 	if len(layout.Panes) == 0 {
 		return nil
 	}
 
+	switch GetMultiplexer() {
+	case MultiplexerTmux:
+		return applyNamedLayoutTmux(layout, wt, repo, cfg)
+	case MultiplexerZellij:
+		return applyNamedLayoutZellij(layout, wt, repo, cfg)
+	default:
+		return nil
+	}
+}
+
+// applyNamedLayoutTmux applies a named layout in tmux.
+func applyNamedLayoutTmux(layout *config.LayoutConfig, wt *git.Worktree, repo *git.Repo, cfg *config.Config) error {
 	// Determine window name to target (the newly created window)
 	windowName := wt.BranchShort()
 	if cfg.Open.WindowNameStyle == "full" {
@@ -349,6 +403,60 @@ func applyNamedLayout(layout *config.LayoutConfig, wt *git.Worktree, repo *git.R
 	return nil
 }
 
+// applyNamedLayoutZellij applies a named layout in zellij.
+func applyNamedLayoutZellij(layout *config.LayoutConfig, wt *git.Worktree, repo *git.Repo, cfg *config.Config) error {
+	// Run command for pane 0 if specified
+	if len(layout.Panes) > 0 && layout.Panes[0].Command != "" {
+		expandedCmd := expandTemplate(layout.Panes[0].Command, wt, repo, cfg)
+		// Use write-chars to type the command, then write 0d (Enter key)
+		writeCmd := exec.Command("zellij", "action", "write-chars", expandedCmd)
+		_ = writeCmd.Run()
+		enterCmd := exec.Command("zellij", "action", "write", "10") // 10 = newline
+		_ = enterCmd.Run()
+	}
+
+	// Create additional panes
+	// Note: Zellij doesn't support split_from like tmux - it always splits the focused pane.
+	// For complex layouts with split_from references, results may differ from tmux.
+	for i := 1; i < len(layout.Panes); i++ {
+		pane := layout.Panes[i]
+
+		// Map direction to zellij direction
+		direction := "right" // default
+		switch pane.Direction {
+		case "right":
+			direction = "right"
+		case "left":
+			direction = "left"
+		case "down":
+			direction = "down"
+		case "up":
+			direction = "up"
+		}
+
+		// Create new pane
+		// Note: Zellij doesn't support percentage-based sizing in new-pane command
+		newPaneCmd := exec.Command("zellij", "action", "new-pane", "--direction", direction, "--cwd", wt.Path)
+		if err := newPaneCmd.Run(); err != nil {
+			continue // Skip this pane on error
+		}
+
+		// Run command in new pane if specified
+		if pane.Command != "" {
+			expandedCmd := expandTemplate(pane.Command, wt, repo, cfg)
+			writeCmd := exec.Command("zellij", "action", "write-chars", expandedCmd)
+			_ = writeCmd.Run()
+			enterCmd := exec.Command("zellij", "action", "write", "10")
+			_ = enterCmd.Run()
+		}
+
+		// Small delay between pane creations
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	return nil
+}
+
 // expandTemplate expands template variables in the command.
 func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *config.Config) string {
 	result := command
@@ -405,7 +513,19 @@ const (
 )
 
 // GetMultiplexer detects the current terminal multiplexer.
+// Returns MultiplexerNone for IDE terminals (VSCode, JetBrains) even if
+// multiplexer env vars are set, since those are inherited but not interactive.
 func GetMultiplexer() Multiplexer {
+	// Check for IDE terminals first - they inherit env vars but aren't interactive
+	termProgram := os.Getenv("TERM_PROGRAM")
+	if termProgram == "vscode" {
+		return MultiplexerNone
+	}
+	// JetBrains IDEs use TERMINAL_EMULATOR
+	if strings.HasPrefix(os.Getenv("TERMINAL_EMULATOR"), "JetBrains") {
+		return MultiplexerNone
+	}
+
 	if os.Getenv("TMUX") != "" {
 		return MultiplexerTmux
 	}
@@ -413,6 +533,19 @@ func GetMultiplexer() Multiplexer {
 		return MultiplexerZellij
 	}
 	return MultiplexerNone
+}
+
+// GetDefaultOpenCommand returns the default open command for the current multiplexer.
+// Returns empty string if no multiplexer is detected.
+func GetDefaultOpenCommand() string {
+	switch GetMultiplexer() {
+	case MultiplexerTmux:
+		return "tmux new-window -n {branch_short} -c {path}"
+	case MultiplexerZellij:
+		return "zellij action new-tab --name {branch_short} --cwd {path}"
+	default:
+		return ""
+	}
 }
 
 // MultiplexerName returns a human-readable name for the multiplexer.

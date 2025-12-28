@@ -168,27 +168,14 @@ type KeysConfig struct {
 }
 
 // DefaultConfig returns the default configuration.
-// It auto-detects the terminal multiplexer to set appropriate defaults.
 func DefaultConfig() *Config {
-	// Auto-detect terminal multiplexer for default open command
-	var openCommand string
-	switch DetectEnvironment() {
-	case "tmux":
-		openCommand = "tmux new-window -n {branch_short} -c {path}"
-	case "zellij":
-		openCommand = "zellij action new-tab --name {branch_short} --cwd {path}"
-	default:
-		// No multiplexer detected - leave empty so user must configure
-		openCommand = ""
-	}
-
 	return &Config{
 		General: GeneralConfig{
 			DefaultBaseBranch: "main",
 			WorktreeDir:       ".worktrees",
 		},
 		Open: OpenConfig{
-			Command:         openCommand,
+			Command:         "",
 			DetectExisting:  "path",
 			ExitAfterOpen:   true,
 			OpenAfterCreate: true,
@@ -342,14 +329,12 @@ func CreateDefaultConfigFile() error {
 		return err
 	}
 
-	env := DetectEnvironment()
-
-	content := generateDefaultConfigContent(env)
+	content := generateDefaultConfigContent()
 	return os.WriteFile(path, []byte(content), 0644)
 }
 
 // generateDefaultConfigContent generates a commented config file.
-func generateDefaultConfigContent(env string) string {
+func generateDefaultConfigContent() string {
 	var b strings.Builder
 
 	b.WriteString("# Grove Configuration\n")
@@ -362,15 +347,10 @@ func generateDefaultConfigContent(env string) string {
 	b.WriteString("worktree_dir = \".worktrees\"\n\n")
 
 	b.WriteString("[open]\n")
-	b.WriteString("# Command to run when opening a worktree\n")
+	b.WriteString("# Command to run when opening a worktree (auto-detected if not set)\n")
+	b.WriteString("# Grove auto-detects tmux/zellij at runtime. Only set this to override.\n")
 	b.WriteString("# Template variables: {path}, {branch}, {branch_short}, {repo}, {window_name}\n")
-	if env == "tmux" {
-		b.WriteString("command = \"tmux new-window -n {branch_short} -c {path}\"\n")
-	} else if env == "zellij" {
-		b.WriteString("command = \"zellij action new-tab --name {branch_short} --cwd {path}\"\n")
-	} else {
-		b.WriteString("# command = \"tmux new-window -n {branch_short} -c {path}\"\n")
-	}
+	b.WriteString("# command = \"tmux new-window -n {branch_short} -c {path}\"\n")
 	b.WriteString("# How to detect existing windows: \"path\", \"name\", or \"none\"\n")
 	b.WriteString("detect_existing = \"name\"\n")
 	b.WriteString("# Whether to exit grove after opening\n")
