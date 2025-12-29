@@ -53,3 +53,12 @@ Grove is a terminal UI for managing Git worktrees, built with the Bubble Tea fra
 - All rendering is delegated to `ui.Render()` with a `RenderParams` struct
 - Worktree paths are generated relative to MainWorktreeRoot for consistency across worktrees
 - Safety checks run asynchronously before showing delete confirmation
+
+## Workflow for agents
+
+Steps:
+1. Read a todo in `docs/todo.md`
+2. Complete it and make sure the tests pass and that it is the minimal implementation of the requested feature
+3. Ask the user to validate that it behaves as expected
+4. If the user says that it is validly made, check the todo and commit the changes
+5. Move back to step 1
