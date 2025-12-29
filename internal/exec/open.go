@@ -120,11 +120,13 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutC
 
 	// Apply named layout if provided
 	if isNewWindow && layout != nil {
-		// Layout errors are non-fatal - we still opened the window successfully
-		_ = applyNamedLayout(layout, wt, repo, cfg)
+		if err := applyNamedLayout(layout, wt, repo, cfg); err != nil {
+			return isNewWindow, fmt.Errorf("window opened but layout failed: %w", err)
+		}
 	} else if isNewWindow && cfg.Open.Layout != "none" && cfg.Open.Layout != "" {
-		// Fall back to legacy layout system
-		_ = applyLayout(cfg, wt, repo)
+		if err := applyLayout(cfg, wt, repo); err != nil {
+			return isNewWindow, fmt.Errorf("window opened but layout failed: %w", err)
+		}
 	}
 
 	return isNewWindow, nil
