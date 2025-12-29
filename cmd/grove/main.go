@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/henri123lemoine/grove/internal/app"
 	"github.com/henri123lemoine/grove/internal/config"
+	"github.com/henri123lemoine/grove/internal/debug"
 	"github.com/henri123lemoine/grove/internal/git"
 	"github.com/henri123lemoine/grove/internal/ui"
 )
@@ -23,8 +25,21 @@ func main() {
 	printPath := flag.Bool("p", false, "Alias for --print-selected")
 	showVersion := flag.Bool("version", false, "Show version")
 	showHelp := flag.Bool("help", false, "Show help")
+	debugMode := flag.Bool("debug", false, "Enable debug logging to ~/.cache/grove/debug.log")
 	flag.BoolVar(showHelp, "h", false, "Show help")
 	flag.Parse()
+
+	// Enable debug logging if requested
+	if *debugMode {
+		cacheDir, _ := os.UserCacheDir()
+		logPath := filepath.Join(cacheDir, "grove", "debug.log")
+		if err := debug.Enable(logPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not enable debug logging: %v\n", err)
+		} else {
+			defer debug.Close()
+			fmt.Fprintf(os.Stderr, "Debug logging enabled: %s\n", logPath)
+		}
+	}
 
 	if *showHelp {
 		printUsage()
@@ -104,6 +119,7 @@ Usage:
 Flags:
   -p, --print-selected  Print the selected worktree path on exit
                         Useful for shell integration: cd "$(grove -p)"
+  --debug               Enable debug logging to ~/.cache/grove/debug.log
   --version             Show version
   -h, --help            Show this help
 

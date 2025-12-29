@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+
+	"github.com/henri123lemoine/grove/internal/debug"
 )
 
 // Worktree represents a Git worktree with its status.
@@ -40,6 +42,8 @@ type Worktree struct {
 
 // List returns all worktrees in the current repository.
 func List() ([]Worktree, error) {
+	defer debug.Timed("git.List")()
+
 	repo, err := GetRepo()
 	if err != nil {
 		return nil, err

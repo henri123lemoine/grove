@@ -9,6 +9,9 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
+
+	"github.com/henri123lemoine/grove/internal/debug"
 )
 
 // Repo holds repository information.
@@ -228,6 +231,7 @@ func runGit(args ...string) (string, error) {
 
 // runGitInDir executes a git command in a specific directory.
 func runGitInDir(dir string, args ...string) (string, error) {
+	start := time.Now()
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	var stdout, stderr bytes.Buffer
@@ -235,6 +239,8 @@ func runGitInDir(dir string, args ...string) (string, error) {
 	cmd.Stderr = &stderr
 
 	err := cmd.Run()
+	debug.Log("git %s (in %s): %v", strings.Join(args, " "), filepath.Base(dir), time.Since(start))
+
 	if err != nil {
 		return "", fmt.Errorf("git %s: %w: %s", strings.Join(args, " "), err, stderr.String())
 	}
