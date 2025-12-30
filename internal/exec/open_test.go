@@ -162,6 +162,23 @@ func TestExpandTemplatePathsWithSpaces(t *testing.T) {
 	}
 }
 
+func TestExpandTemplateQuotesBranchAndRepo(t *testing.T) {
+	wt := &git.Worktree{
+		Path:   "/home/user/project",
+		Branch: "feature;rm",
+	}
+	repo := &git.Repo{
+		Root: "/home/user/My Projects",
+	}
+	cfg := config.DefaultConfig()
+
+	result := expandTemplate("echo {branch} {branch_short} {repo} {window_name}", wt, repo, cfg)
+	expected := "echo 'feature;rm' 'feature;rm' 'My Projects' 'feature;rm'"
+	if result != expected {
+		t.Errorf("expandTemplate() = %q, want %q", result, expected)
+	}
+}
+
 func TestShellQuote(t *testing.T) {
 	tests := []struct {
 		name     string

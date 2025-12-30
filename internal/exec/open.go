@@ -463,25 +463,28 @@ func applyNamedLayoutZellij(layout *config.LayoutConfig, wt *git.Worktree, repo 
 func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *config.Config) string {
 	result := command
 
-	// {path} - Full path to worktree (shell-quoted for paths with spaces)
-	result = strings.ReplaceAll(result, "{path}", shellQuote(wt.Path))
-
-	// {branch} - Full branch name
-	result = strings.ReplaceAll(result, "{branch}", wt.Branch)
-
-	// {branch_short} - Short branch name (after last /)
-	result = strings.ReplaceAll(result, "{branch_short}", wt.BranchShort())
-
-	// {repo} - Repository name (directory name)
+	branch := wt.Branch
+	branchShort := wt.BranchShort()
 	repoName := filepath.Base(repo.Root)
-	result = strings.ReplaceAll(result, "{repo}", repoName)
-
-	// {window_name} - Window name based on style config
-	windowName := wt.BranchShort()
+	windowName := branchShort
 	if cfg != nil && cfg.Open.WindowNameStyle == "full" {
-		windowName = wt.Branch
+		windowName = branch
 	}
-	result = strings.ReplaceAll(result, "{window_name}", windowName)
+
+	replacements := []struct {
+		key   string
+		value string
+	}{
+		{"{path}", shellQuote(wt.Path)},
+		{"{branch}", shellQuote(branch)},
+		{"{branch_short}", shellQuote(branchShort)},
+		{"{repo}", shellQuote(repoName)},
+		{"{window_name}", shellQuote(windowName)},
+	}
+
+	for _, repl := range replacements {
+		result = strings.ReplaceAll(result, repl.key, repl.value)
+	}
 
 	return result
 }
