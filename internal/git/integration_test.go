@@ -329,6 +329,119 @@ func TestSafetyCheckIntegration(t *testing.T) {
 	}
 }
 
+// TestSafetyCheckDetachedHead tests CheckSafety with detached HEAD.
+func TestSafetyCheckDetachedHead(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	repo, err := GetRepo()
+	if err != nil {
+		t.Fatalf("GetRepo failed: %v", err)
+	}
+
+	// Get current commit hash
+	commitHash, err := runGitInDir(repoDir, "rev-parse", "--short", "HEAD")
+	if err != nil {
+		t.Fatalf("Failed to get HEAD: %v", err)
+	}
+	commitHash = commitHash[:len(commitHash)-1] // trim newline
+
+	// Create a worktree in detached HEAD state
+	wtPath := filepath.Join(repoDir, ".worktrees", "detached")
+	if err := runIn(repoDir, "git", "worktree", "add", "--detach", wtPath); err != nil {
+		t.Fatalf("git worktree add --detach failed: %v", err)
+	}
+	defer func() { _ = Remove(wtPath, true) }()
+
+	// Test CheckSafety with detached HEAD format
+	detachedBranch := commitHash + " (detached)"
+	safety, err := CheckSafety(wtPath, detachedBranch, repo.DefaultBranch)
+	if err != nil {
+		t.Fatalf("CheckSafety failed: %v", err)
+	}
+
+	// Should be safe - no uncommitted changes and no unique commits
+	if safety.Level != SafetyLevelSafe {
+		t.Errorf("Expected SafetyLevelSafe for clean detached HEAD, got %s", safety.Level)
+	}
+	// MergeStatusKnown should be set (merge check was attempted)
+	if !safety.MergeStatusKnown {
+		t.Error("Expected MergeStatusKnown=true for detached HEAD")
+	}
+	// Note: IsMerged may be false even for commits on default branch because
+	// IsBranchMerged uses branch names from `git branch --merged`, not commit ancestry
+	if safety.HasUncommittedChanges {
+		t.Error("Expected no uncommitted changes")
+	}
+}
+
+// TestSafetyCheckEmptyDefaultBranch tests CheckSafety with empty default branch.
+func TestSafetyCheckEmptyDefaultBranch(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Create a worktree
+	wtPath := filepath.Join(repoDir, ".worktrees", "feature")
+	if err := Create(wtPath, "feature", true, ""); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = Remove(wtPath, true) }()
+
+	// Test with empty default branch
+	safety, err := CheckSafety(wtPath, "feature", "")
+	if err != nil {
+		t.Fatalf("CheckSafety failed: %v", err)
+	}
+
+	// Should have safety check errors and at least warning level
+	if !safety.HasSafetyCheckErrors {
+		t.Error("Expected HasSafetyCheckErrors=true for empty default branch")
+	}
+	if len(safety.SafetyCheckErrors) == 0 {
+		t.Error("Expected at least one error message")
+	}
+	if safety.Level < SafetyLevelWarning {
+		t.Errorf("Expected at least SafetyLevelWarning, got %s", safety.Level)
+	}
+}
+
+// TestSafetyCheckGitErrors tests CheckSafety error recording.
+func TestSafetyCheckGitErrors(t *testing.T) {
+	// Test with invalid worktree path
+	safety, err := CheckSafety("/nonexistent/path", "some-branch", "main")
+	if err != nil {
+		t.Fatalf("CheckSafety should not return error, got: %v", err)
+	}
+
+	// Should record errors for dirty status check failure
+	if !safety.HasSafetyCheckErrors {
+		t.Error("Expected HasSafetyCheckErrors=true for invalid path")
+	}
+	if len(safety.SafetyCheckErrors) == 0 {
+		t.Error("Expected at least one error in SafetyCheckErrors")
+	}
+}
+
 // TestBranchOperations tests branch-related operations.
 func TestBranchOperations(t *testing.T) {
 	repoDir, cleanup := setupTestRepo(t)
