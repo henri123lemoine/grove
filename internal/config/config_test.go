@@ -88,6 +88,27 @@ func TestValidate(t *testing.T) {
 			},
 			wantWarning: false,
 		},
+		{
+			name: "custom layout without layout_command",
+			config: &Config{
+				Open: OpenConfig{
+					Command: "tmux new-window -c {path}",
+					Layout:  "custom",
+				},
+			},
+			wantWarning: true,
+		},
+		{
+			name: "custom layout with layout_command",
+			config: &Config{
+				Open: OpenConfig{
+					Command:       "tmux new-window -c {path}",
+					Layout:        "custom",
+					LayoutCommand: "tmux split-window -h",
+				},
+			},
+			wantWarning: false,
+		},
 	}
 
 	for _, tt := range tests {

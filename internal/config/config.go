@@ -495,6 +495,11 @@ func (c *Config) Validate() []string {
 		}
 	}
 
+	// Check that layout_command is set when layout = "custom"
+	if c.Open.Layout == "custom" && strings.TrimSpace(c.Open.LayoutCommand) == "" {
+		warnings = append(warnings, "layout = \"custom\" requires layout_command to be set")
+	}
+
 	// Check window_name_style value
 	if c.Open.WindowNameStyle != "" &&
 		c.Open.WindowNameStyle != "short" &&
