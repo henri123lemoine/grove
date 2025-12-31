@@ -363,6 +363,9 @@ func (w *Worktree) BranchShort() string {
 
 // CopyFiles copies files matching patterns from source to dest worktree.
 func CopyFiles(sourceDir, destDir string, patterns, ignores []string) error {
+	// Resolve source directory for path traversal validation
+	resolvedSource := resolvePath(sourceDir)
+
 	for _, pattern := range patterns {
 		// Find files matching pattern
 		matches, err := filepath.Glob(filepath.Join(sourceDir, pattern))
@@ -371,6 +374,12 @@ func CopyFiles(sourceDir, destDir string, patterns, ignores []string) error {
 		}
 
 		for _, srcPath := range matches {
+			// Validate path is within source directory (prevent path traversal)
+			resolvedSrc := resolvePath(srcPath)
+			if !isWithinPath(resolvedSource, resolvedSrc) {
+				continue
+			}
+
 			// Check if ignored
 			relPath, _ := filepath.Rel(sourceDir, srcPath)
 			if isIgnored(relPath, ignores) {
