@@ -10,19 +10,18 @@ type SafetyLevel int
 const (
 	// SafetyLevelSafe means the worktree can be deleted without data loss.
 	// - Clean working directory
-	// - Branch merged to default
-	// - No unique commits
+	// - Branch merged to default, or all commits pushed to remote
+	// - No unique local-only commits
 	SafetyLevelSafe SafetyLevel = iota
 
-	// SafetyLevelWarning means deletion will lose some work, but it's recoverable.
-	// - Has uncommitted changes
-	// - Has unpushed commits (but pushed to remote)
+	// SafetyLevelWarning means deletion may lose some work, but it's recoverable.
+	// - Has unpushed commits (but branch exists on remote)
 	// - Branch not merged (but exists on remote)
 	SafetyLevelWarning
 
-	// SafetyLevelDanger means deletion will permanently lose commits.
-	// - Has commits that exist ONLY on this branch
-	// - Not pushed, not merged anywhere
+	// SafetyLevelDanger means deletion will permanently lose work.
+	// - Has uncommitted changes (staged, unstaged, or untracked files)
+	// - Has commits that exist ONLY locally (not pushed, not merged)
 	SafetyLevelDanger
 )
 
@@ -55,6 +54,12 @@ func isDetachedBranch(branch string) bool {
 	return strings.HasSuffix(branch, "(detached)")
 }
 
+// remoteBranchExists checks if a remote branch exists (e.g., "origin/my-branch").
+func remoteBranchExists(remoteBranch string) bool {
+	_, err := runGit("rev-parse", "--verify", remoteBranch)
+	return err == nil
+}
+
 // CheckSafety analyzes a worktree and returns safety information.
 func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error) {
 	info := &SafetyInfo{
@@ -63,12 +68,13 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 
 	isDetached := isDetachedBranch(branch)
 
-	// 1. Check for uncommitted changes
+	// 1. Check for uncommitted changes (staged, unstaged, untracked)
+	// These are truly unrecoverable, so this is Danger level
 	isDirty, count, err := GetDirtyStatus(worktreePath)
 	if err == nil && isDirty {
 		info.HasUncommittedChanges = true
 		info.UncommittedFileCount = count
-		info.Level = SafetyLevelWarning
+		info.Level = SafetyLevelDanger
 	}
 
 	// 2. Check if branch is merged to default
@@ -121,11 +127,22 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 }
 
 // GetUniqueCommits returns commits that exist only on this branch.
-// These are commits not on the default branch (would be lost if branch deleted).
+// These are commits not on the default branch AND not pushed to the remote.
+// If pushed to the remote, they're recoverable even if we delete the local branch.
 func GetUniqueCommits(branch, defaultBranch string) ([]CommitInfo, error) {
-	// git log {branch} --not {defaultBranch}
-	// Shows commits on this branch that aren't on the default branch
-	output, err := runGit("log", branch, "--not", defaultBranch, "--format=%h %s")
+	// First, check if there's a remote tracking branch
+	remoteBranch := "origin/" + branch
+	hasRemote := remoteBranchExists(remoteBranch)
+
+	// git log {branch} --not {defaultBranch} [--not origin/{branch}]
+	// Shows commits on this branch that aren't on the default branch (or remote)
+	args := []string{"log", branch, "--not", defaultBranch}
+	if hasRemote {
+		args = append(args, "--not", remoteBranch)
+	}
+	args = append(args, "--format=%h %s")
+
+	output, err := runGit(args...)
 	if err != nil {
 		return nil, err
 	}

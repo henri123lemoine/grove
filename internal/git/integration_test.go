@@ -293,7 +293,7 @@ func TestSafetyCheckIntegration(t *testing.T) {
 		t.Errorf("Expected SafetyLevelSafe, got %s", safety.Level)
 	}
 
-	// Add uncommitted changes to make it warning level
+	// Add uncommitted changes - this is danger level (unrecoverable)
 	if err := os.WriteFile(filepath.Join(wtPath, "dirty.txt"), []byte("dirty"), 0644); err != nil {
 		t.Fatalf("Failed to write file: %v", err)
 	}
@@ -302,14 +302,14 @@ func TestSafetyCheckIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CheckSafety failed: %v", err)
 	}
-	if safety.Level != SafetyLevelWarning {
-		t.Errorf("Expected SafetyLevelWarning for dirty worktree, got %s", safety.Level)
+	if safety.Level != SafetyLevelDanger {
+		t.Errorf("Expected SafetyLevelDanger for dirty worktree, got %s", safety.Level)
 	}
 	if !safety.HasUncommittedChanges {
 		t.Error("Expected HasUncommittedChanges=true")
 	}
 
-	// Commit the change to make it danger level (unique commits)
+	// Commit the change - still danger level (unique unpushed commits)
 	if err := runIn(wtPath, "git", "add", "."); err != nil {
 		t.Fatalf("git add failed: %v", err)
 	}
