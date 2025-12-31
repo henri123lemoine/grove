@@ -301,18 +301,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.safetyInfo = msg.Info
 
-		// Check if we can skip confirmation based on config
+		// Safety confirmation decision tree:
+		//
+		// 1. SafetyLevelSafe: Skip confirmation - worktree is clean and merged
+		//
+		// 2. SafetyLevelWarning: Skip if ALL of these are false:
+		//    - HasUncommittedChanges AND config.ConfirmDirty
+		//    - !IsMerged AND config.ConfirmUnmerged
+		//    - HasUnpushedCommits (always requires warning)
+		//
+		// 3. SafetyLevelDanger: Always show confirmation
+		//    - If config.RequireTypingForUnique: require typing "delete" to confirm
+		//
+		// 4. HasSafetyCheckErrors: Always show confirmation (can't assess risk)
+		//
 		skipConfirmation := false
 		if msg.Info.Level == git.SafetyLevelSafe {
-			// Safe level - check if any confirmation is needed at all
-			// Only dirty worktrees need ConfirmDirty, only unmerged need ConfirmUnmerged
-			// SafetyLevelSafe means clean and merged, so no confirmation needed
 			skipConfirmation = true
 		} else if msg.Info.Level == git.SafetyLevelWarning {
-			// Warning level - check config flags
 			needsDirtyConfirm := msg.Info.HasUncommittedChanges && m.config.Safety.ConfirmDirty
 			needsUnmergedConfirm := !msg.Info.IsMerged && m.config.Safety.ConfirmUnmerged
-			needsUnpushedConfirm := msg.Info.HasUnpushedCommits // Always warn about unpushed
+			needsUnpushedConfirm := msg.Info.HasUnpushedCommits
 			skipConfirmation = !needsDirtyConfirm && !needsUnmergedConfirm && !needsUnpushedConfirm
 		}
 
@@ -331,7 +340,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, deleteWorktree(path, force)
 		}
 
-		// Focus delete input only if danger level AND config requires typing
+		// Require typing "delete" for danger level if configured
 		if msg.Info.Level == git.SafetyLevelDanger && m.config.Safety.RequireTypingForUnique {
 			m.deleteInput.Focus()
 			return m, textinput.Blink
