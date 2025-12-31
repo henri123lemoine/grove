@@ -511,26 +511,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case UpstreamLoadedMsg:
+		// Build map for O(1) lookups
+		upstreamByPath := make(map[string]git.Worktree, len(msg.Worktrees))
+		for _, wt := range msg.Worktrees {
+			upstreamByPath[wt.Path] = wt
+		}
 		// Update worktrees with background-loaded upstream status
 		for i := range m.worktrees {
-			for _, updated := range msg.Worktrees {
-				if m.worktrees[i].Path == updated.Path {
-					m.worktrees[i].Ahead = updated.Ahead
-					m.worktrees[i].Behind = updated.Behind
-					m.worktrees[i].HasUpstream = updated.HasUpstream
-					break
-				}
+			if updated, ok := upstreamByPath[m.worktrees[i].Path]; ok {
+				m.worktrees[i].Ahead = updated.Ahead
+				m.worktrees[i].Behind = updated.Behind
+				m.worktrees[i].HasUpstream = updated.HasUpstream
 			}
 		}
 		// Also update filtered list
 		for i := range m.filteredWorktrees {
-			for _, updated := range msg.Worktrees {
-				if m.filteredWorktrees[i].Path == updated.Path {
-					m.filteredWorktrees[i].Ahead = updated.Ahead
-					m.filteredWorktrees[i].Behind = updated.Behind
-					m.filteredWorktrees[i].HasUpstream = updated.HasUpstream
-					break
-				}
+			if updated, ok := upstreamByPath[m.filteredWorktrees[i].Path]; ok {
+				m.filteredWorktrees[i].Ahead = updated.Ahead
+				m.filteredWorktrees[i].Behind = updated.Behind
+				m.filteredWorktrees[i].HasUpstream = updated.HasUpstream
 			}
 		}
 		return m, nil
