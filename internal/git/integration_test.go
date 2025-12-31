@@ -35,12 +35,19 @@ func setupTestRepo(t *testing.T) (string, func()) {
 		t.Fatalf("git init failed: %v", err)
 	}
 
-	// Configure git user for commits
-	if err := runIn(tmpDir, "git", "config", "user.email", "test@test.com"); err != nil {
+	// Verify .git exists before configuring (safety check)
+	gitDir := filepath.Join(tmpDir, ".git")
+	if _, err := os.Stat(gitDir); os.IsNotExist(err) {
+		cleanup()
+		t.Fatalf("git init did not create .git directory in %s", tmpDir)
+	}
+
+	// Configure git user for commits (use --local to ensure config stays in this repo)
+	if err := runIn(tmpDir, "git", "config", "--local", "user.email", "test@test.com"); err != nil {
 		cleanup()
 		t.Fatalf("git config email failed: %v", err)
 	}
-	if err := runIn(tmpDir, "git", "config", "user.name", "Test User"); err != nil {
+	if err := runIn(tmpDir, "git", "config", "--local", "user.name", "Test User"); err != nil {
 		cleanup()
 		t.Fatalf("git config name failed: %v", err)
 	}
@@ -63,13 +70,35 @@ func setupTestRepo(t *testing.T) (string, func()) {
 	return tmpDir, cleanup
 }
 
-// runIn runs a command in a directory.
+// runIn runs a command in a directory with git environment variables cleared.
+// This ensures git commands operate only on the target directory's repo,
+// preventing accidental modifications to parent repositories.
 func runIn(dir string, name string, args ...string) error {
 	cmd := exec.Command(name, args...)
 	cmd.Dir = dir
 	cmd.Stdout = nil
 	cmd.Stderr = nil
+	// Clear git-related environment variables to prevent interference
+	// from parent git repos or worktrees
+	cmd.Env = filterGitEnv(os.Environ())
 	return cmd.Run()
+}
+
+// filterGitEnv removes git-related environment variables that could cause
+// commands to operate on the wrong repository.
+func filterGitEnv(env []string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		// Skip git environment variables that could point to other repos
+		if strings.HasPrefix(e, "GIT_DIR=") ||
+			strings.HasPrefix(e, "GIT_WORK_TREE=") ||
+			strings.HasPrefix(e, "GIT_COMMON_DIR=") ||
+			strings.HasPrefix(e, "GIT_INDEX_FILE=") {
+			continue
+		}
+		filtered = append(filtered, e)
+	}
+	return filtered
 }
 
 // TestWorktreeCreateAndDelete tests the full worktree lifecycle.

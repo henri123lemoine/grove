@@ -43,7 +43,7 @@ func LoadCache(repoRoot string) *WorktreeCache {
 	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_SH); err != nil {
 		return nil
 	}
-	defer syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN) }()
 
 	// Read and parse
 	data, err := os.ReadFile(path)
@@ -94,7 +94,7 @@ func SaveCache(repoRoot string, worktrees []Worktree) error {
 	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
 		return err
 	}
-	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+	defer func() { _ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN) }()
 
 	// Write atomically: write to temp file then rename
 	tmpPath := path + ".tmp"
