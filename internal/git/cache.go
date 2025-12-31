@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"syscall"
 	"time"
 )
 
@@ -30,6 +31,21 @@ func getCachePath(repoRoot string) string {
 // Always returns cached data regardless of age - caller decides whether to refresh.
 func LoadCache(repoRoot string) *WorktreeCache {
 	path := getCachePath(repoRoot)
+
+	// Open file with shared lock for reading
+	file, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer file.Close()
+
+	// Acquire shared (read) lock - blocks if exclusive lock is held
+	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_SH); err != nil {
+		return nil
+	}
+	defer syscall.Flock(int(file.Fd()), syscall.LOCK_UN)
+
+	// Read and parse
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil
@@ -66,7 +82,27 @@ func SaveCache(repoRoot string, worktrees []Worktree) error {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0600)
+	// Use a lock file to coordinate between processes
+	lockPath := path + ".lock"
+	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	defer lockFile.Close()
+
+	// Acquire exclusive lock - blocks until lock is available
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+		return err
+	}
+	defer syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+
+	// Write atomically: write to temp file then rename
+	tmpPath := path + ".tmp"
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpPath, path)
 }
 
 // ListCached returns worktrees from cache if available, otherwise fetches fresh.

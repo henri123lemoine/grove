@@ -49,19 +49,17 @@ func Close() {
 
 // IsEnabled returns whether debug logging is enabled.
 func IsEnabled() bool {
+	mu.Lock()
+	defer mu.Unlock()
 	return enabled
 }
 
 // Log writes a debug message if debugging is enabled.
 func Log(format string, args ...interface{}) {
-	if !enabled {
-		return
-	}
-
 	mu.Lock()
 	defer mu.Unlock()
 
-	if logFile == nil {
+	if !enabled || logFile == nil {
 		return
 	}
 
@@ -74,7 +72,7 @@ func Log(format string, args ...interface{}) {
 //
 //	defer debug.Timed("operation name")()
 func Timed(name string) func() {
-	if !enabled {
+	if !IsEnabled() {
 		return func() {}
 	}
 

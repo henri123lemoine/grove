@@ -63,24 +63,31 @@ func List() ([]Worktree, error) {
 		cwd = ""
 	}
 
-	// Enrich with status information (parallelized for performance)
-	var wg sync.WaitGroup
+	// Phase 1: Enrich with fast, non-git status (single-threaded to avoid races)
+	// Resolve cwd once for all comparisons
+	cwdPath := ""
+	if cwd != "" {
+		cwdPath = ResolvePath(cwd)
+	}
+	mainWorktreePath := ResolvePath(repo.MainWorktreeRoot)
+
 	for i := range worktrees {
 		wt := &worktrees[i]
+		wtPath := ResolvePath(wt.Path)
 
 		// Check if this is the current worktree (fast, no git call)
-		// Use ResolvePath to handle symlinks correctly
-		if cwd != "" {
-			wtPath := ResolvePath(wt.Path)
-			cwdPath := ResolvePath(cwd)
+		if cwdPath != "" {
 			wt.IsCurrent = wtPath == cwdPath || strings.HasPrefix(cwdPath, wtPath+string(filepath.Separator))
 		}
 
 		// Check if this is the main worktree (fast, no git call)
-		// Use ResolvePath to handle symlinks correctly
-		wt.IsMain = ResolvePath(wt.Path) == ResolvePath(repo.MainWorktreeRoot) || (repo.IsBare && i == 0)
+		wt.IsMain = wtPath == mainWorktreePath || (repo.IsBare && i == 0)
+	}
 
-		// Parallelize git operations
+	// Phase 2: Parallelize git operations (after all single-threaded writes complete)
+	var wg sync.WaitGroup
+	for i := range worktrees {
+		wt := &worktrees[i]
 		wg.Add(1)
 		go func(wt *Worktree) {
 			defer wg.Done()
