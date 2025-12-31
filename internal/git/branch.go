@@ -202,11 +202,16 @@ func BranchExists(name string) bool {
 
 // DeleteBranch deletes a local branch.
 func DeleteBranch(name string, force bool) error {
+	repo, err := GetRepo()
+	if err != nil {
+		return err
+	}
+
 	flag := "-d"
 	if force {
 		flag = "-D"
 	}
-	_, err := runGit("branch", flag, name)
+	_, err = runGitInDir(repo.MainWorktreeRoot, "branch", flag, name)
 	return err
 }
 
