@@ -2,7 +2,7 @@
 
 A terminal UI for managing Git worktrees.
 
-![grove screenshot](./docs/screenshot.png)
+![grove demo](./docs/demo.gif)
 
 ## Features
 
