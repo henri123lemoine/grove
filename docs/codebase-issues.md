@@ -1,368 +1,335 @@
-# Grove Codebase Issues Report
+# Grove Codebase Issues Analysis
 
-This document summarizes issues found during a comprehensive analysis of the Grove codebase by 10 specialized analysis agents.
+This document contains a comprehensive analysis of issues found in the Grove codebase, organized by category.
 
 ---
 
 ## Table of Contents
 
 1. [Error Handling Issues](#1-error-handling-issues)
-2. [Concurrency & Race Conditions](#2-concurrency--race-conditions)
-3. [Security Vulnerabilities](#3-security-vulnerabilities)
-4. [Code Duplication (DRY Violations)](#4-code-duplication-dry-violations)
-5. [Edge Cases & Potential Bugs](#5-edge-cases--potential-bugs)
-6. [Test Coverage Gaps](#6-test-coverage-gaps)
-7. [Performance Issues](#7-performance-issues)
-8. [API/Interface Design Issues](#8-apiinterface-design-issues)
-9. [Configuration Validation Issues](#9-configuration-validation-issues)
-10. [Documentation & Code Clarity](#10-documentation--code-clarity)
+2. [Race Conditions & Concurrency](#2-race-conditions--concurrency)
+3. [Code Duplication](#3-code-duplication)
+4. [Test Coverage Gaps](#4-test-coverage-gaps)
+5. [API/Interface Design Issues](#5-apiinterface-design-issues)
+6. [Performance Issues](#6-performance-issues)
+7. [Configuration Validation Gaps](#7-configuration-validation-gaps)
+8. [Documentation Issues](#8-documentation-issues)
+9. [Maintainability Issues](#9-maintainability-issues)
 
 ---
 
 ## 1. Error Handling Issues
 
-### Critical: Silently Swallowed Errors
+### Critical: Silent Error Swallowing
 
 | File | Line | Issue |
 |------|------|-------|
-| `internal/git/worktree.go` | 99 | `wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(wt.Path)` - dirty status error silently discarded |
-| `internal/git/worktree.go` | 115 | Upstream status error ignored in `EnrichWorktreesUpstream()` goroutine |
-| `internal/git/worktree.go` | 126 | `GetLastCommit()` error ignored in `EnrichWorktreeDetail()` |
-| `internal/git/worktree.go` | 138 | `IsBranchMerged()` error ignored in `EnrichWorktreeSafety()` |
-| `internal/git/worktree.go` | 365 | `filepath.Rel()` error ignored in `CopyFiles()` |
-| `internal/git/worktree.go` | 487 | Git command error ignored in `Prune()` |
-| `internal/git/status.go` | 40-41 | `strconv.Atoi()` errors silently default to 0 |
+| `worktree.go` | 201 | `_, _ = runGitInDir(...)` - Git prune fails silently |
+| `cache.go` | 93, 107 | `_ = SaveCache(...)` - Cache save failures ignored |
+| `multiplexer.go` | 167, 218, 306, 308, 336, 338 | Tmux/Zellij command failures ignored |
 
-### Missing Error Context
+### Critical: Parallel Operations Without Error Handling
 
 | File | Line | Issue |
 |------|------|-------|
-| `internal/git/repo.go` | 102 | `os.Getwd()` error returned without context |
-| `internal/exec/open.go` | Multiple | Shell command errors ignored (`_ = sendCmd.Run()`) |
+| `worktree.go` | 99 | `wt.IsDirty, wt.DirtyFiles, _ = GetDirtyStatus(...)` |
+| `worktree.go` | 115 | `wt.Ahead, wt.Behind, wt.HasUpstream, _ = GetUpstreamStatus(...)` |
+| `worktree.go` | 126 | `wt.LastCommitHash, wt.LastCommitMessage, wt.LastCommitTime, _ = GetLastCommit(...)` |
+| `worktree.go` | 138-141 | `wt.IsMerged, _` and `wt.UniqueCommits` errors swallowed |
 
-### Errors in Loops Skipped Silently
+### Inconsistent Error Wrapping
 
-| File | Line | Issue |
-|------|------|-------|
-| `internal/git/worktree.go` | 360 | `filepath.Glob()` error causes pattern to be skipped |
-| `internal/git/worktree.go` | 376 | `os.Stat()` error skips file copy |
-| `internal/exec/open.go` | 387-388 | Tmux split-window failure skips pane silently |
-
----
-
-## 2. Concurrency & Race Conditions
-
-### Good Practices Found
-
-- **All tests pass with `-race` detector**
-- Double-checked locking pattern in `repo.go` correctly implemented
-- WaitGroup usage in worktree enrichment is sound
-- Bubble Tea's message-based architecture prevents shared state issues
-
-### Potential Issues
-
-| File | Line | Issue | Severity |
-|------|------|-------|----------|
-| `internal/git/repo.go` | 38-67 | Global `currentRepo` cache doesn't update on `os.Chdir()` | Low |
-| `internal/git/cache.go` | - | Lock-free file I/O relies on filesystem atomicity | Low |
-
-### Recommendations
-
-- Add documentation about global repo caching behavior
-- Consider adding `context.Context` for timeout support on git operations
-- Add max parallelism limit for worktree enrichment with many worktrees
+- `repo.go:92-94` - Some errors wrapped with context
+- `repo.go:109-122` - Other errors NOT wrapped with context
+- `safety.go` - Errors recorded in struct instead of returned
 
 ---
 
-## 3. Security Vulnerabilities
+## 2. Race Conditions & Concurrency
 
-### Critical
+### CRITICAL: Data Race in Worktree Enrichment
 
-| File | Line | Severity | Issue |
-|------|------|----------|-------|
-| `internal/exec/open.go` | 28, 48, 103, 285 | HIGH | Shell injection via `exec.Command("sh", "-c", ...)` with user-controlled input |
+**File**: `worktree.go:67-90`
 
-### Medium
+```go
+var wg sync.WaitGroup
+for i := range worktrees {
+    wt := &worktrees[i]
+    // Main thread writes IsCurrent, IsMain (lines 74, 81)
+    wg.Add(1)
+    go func(wt *Worktree) {
+        defer wg.Done()
+        enrichWorktree(wt, repo)  // Goroutine writes IsDirty, DirtyFiles
+    }(wt)
+}
+```
 
-| File | Line | Severity | Issue |
-|------|------|----------|-------|
-| `internal/config/config.go` | 310, 319, 328, 333 | MEDIUM | Unsafe file permissions (0755 dirs, 0644 files) - should be 0700/0600 |
-| `internal/git/worktree.go` | 420, 452 | MEDIUM | Unsafe permissions when copying files |
-| `internal/git/worktree.go` | 355-390 | MEDIUM | Path traversal possible via `copy_patterns` like `../*` |
-| `internal/git/worktree.go` | 222-255 | MEDIUM | TOCTOU race in `checkCreateConflicts()` |
+Main thread and goroutines write to same struct fields simultaneously.
 
-### Low
+### CRITICAL: Debug Package Race Condition
 
-| File | Line | Severity | Issue |
-|------|------|----------|-------|
-| `internal/exec/open.go` | 685-697 | LOW | Symlink resolution fallback could bypass security checks |
-| `internal/exec/open.go` | 534-540 | LOW | Environment variable trust issues (`TMUX`, `ZELLIJ`) |
+**File**: `debug.go:52, 57, 64`
 
----
+```go
+func IsEnabled() bool {
+    return enabled      // NO LOCK - RACE!
+}
 
-## 4. Code Duplication (DRY Violations)
+func Log(format string, args ...interface{}) {
+    if !enabled {       // NO LOCK - RACE!
+        return
+    }
+    mu.Lock()           // Too late - already read enabled
+```
 
-### High Severity
+### High: Cache Invalidation Race
 
-| Location | Issue |
-|----------|-------|
-| `internal/git/worktree.go:514-526` & `internal/exec/open.go:685-697` | **Duplicate `resolvePath()` function** - identical implementations |
+**File**: `worktree.go:286`
 
-### Medium Severity
+No file locking for cache.json - multiple Grove instances can corrupt cache.
 
-| Location | Issue |
-|----------|-------|
-| `internal/ui/render.go` (21 occurrences) | `DividerStyle.Render(strings.Repeat("─", contentWidth))` repeated |
-| `internal/app/app.go:493-534` | Nested O(n²) loops for updating worktrees in both lists |
-| `internal/app/app.go` (multiple) | ESC key cleanup pattern repeated in 6+ handlers |
-| `internal/app/app.go:659-664, 765-770, 1040-1044` | "Find current worktree" pattern repeated 3+ times |
-| `internal/app/app.go` (multiple) | Delete state reset pattern repeated 4+ times |
+### High: Unbounded Goroutine Spawning
 
-### Recommendations
+**File**: `worktree.go:68-89`
 
-1. Extract `resolvePath()` to shared utility package
-2. Create `divider(width int)` helper function
-3. Extract `updateWorktreeInLists()` method
-4. Extract `getCurrentWorktree()` method
-5. Extract `resetDeleteState()` method
+No goroutine pool for large worktree lists (1000+ worktrees = 1000+ goroutines).
 
 ---
 
-## 5. Edge Cases & Potential Bugs
+## 3. Code Duplication
 
-### Critical Bugs
+### High Priority Duplications
 
-| File | Line | Issue | Reproduction |
-|------|------|-------|--------------|
-| `internal/app/app.go` | 998-1002 | Stash cursor can become -1 with empty list | Press End key with empty stash list |
-| `internal/app/app.go` | 1492-1506 | Negative `availableLines` possible | Terminal height < 6 lines |
-| `internal/app/app.go` | 1007-1021 | Race condition: stash entries change between check and access | Navigate rapidly during stash operations |
-| `internal/app/app.go` | 832-836 | Race condition: SafetyInfo loads while typing confirmation | Spam keypresses during safety check |
+| Pattern | Locations | Frequency |
+|---------|-----------|-----------|
+| Cursor/scroll management | `app.go:1535-1579` | 2x |
+| Visible count calculation | `app.go:1519-1533, 1699-1714` | 2x |
+| State reset (delete flow) | `app.go:862-896, 1122-1179` | 8x |
+| Find current worktree loop | `app.go:376-382, 675-680, 783-787, 1059-1063` | 4x |
+| Y/N confirmation pattern | `app.go:887-898, 1166-1181` | 3x |
 
-### Medium Bugs
+### Medium Priority Duplications
 
-| File | Line | Issue |
-|------|------|-------|
-| `internal/git/worktree.go` | 175-177 | Unsafe slice access for short HEAD hashes (< 7 chars) |
-| `internal/app/app.go` | 1194-1197 | Cursor can become -1 when clearing filter |
-| `internal/app/app.go` | 1029-1078 | Layout cursor boundary inconsistency |
-| `internal/git/safety.go` | 100-111 | Detached HEAD format assumption |
-| `internal/git/status.go` | 35-41 | Malformed git output handling |
-
-### Input Validation Issues
-
-| File | Line | Issue |
-|------|------|-------|
-| `internal/app/app.go` | 820-826 | No baseBranch validation before creation |
-| `internal/app/app.go` | 1347-1352 | No path validation in `deleteWorktree` |
-| `internal/app/app.go` | 958-966 | No git branch name format validation in rename |
+| Pattern | Locations | Frequency |
+|---------|-----------|-----------|
+| Scroll indicators | `render.go:238-259, 460-462, 499-501, 659-661` | 6x |
+| Header/divider rendering | `render.go` throughout | 9x |
+| Footer help rendering | `render.go` throughout | 7x |
+| Stash operations | `stash.go:73-88` | 3x |
+| Text input initialization | `app.go:169-183` | 4x |
 
 ---
 
-## 6. Test Coverage Gaps
+## 4. Test Coverage Gaps
 
-### Functions With Zero Test Coverage
+### Packages with Zero Test Coverage
 
-**internal/git/worktree.go:**
-- `enrichWorktree()`, `EnrichWorktreesUpstream()`, `EnrichWorktreeDetail()`, `EnrichWorktreeSafety()`
-- `checkCreateConflicts()`, `CopyFiles()`, `isIgnored()`, `copyFile()`, `copyDir()`
-- `Prune()`, `resolvePath()`, `isWithinPath()`
+| Package/File | Functions | Status |
+|--------------|-----------|--------|
+| `git/branch.go` | 10 functions | 0% tested |
+| `git/cache.go` | 5 functions | 0% tested |
+| `git/status.go` | 4 functions | 0% tested |
+| `git/stash.go` | 5 functions | 0% tested |
+| `exec/multiplexer.go` | 25+ methods | 0% tested |
 
-**internal/git/safety.go:**
-- `CheckSafety()`, `GetUniqueCommits()`, `IsBranchMerged()`, `GetMergedBranches()`
+### Significantly Under-tested Areas
 
-**internal/git/status.go:**
-- `GetUpstreamStatus()`, `GetLastCommit()`, `FetchAll()`
+| File | Functions | Coverage |
+|------|-----------|----------|
+| `app/app.go` | 60+ functions | ~18% |
+| `git/worktree.go` | 17 functions | ~11% |
+| `git/repo.go` | 8 functions | ~12% |
+| `git/safety.go` | 7 functions | ~14% |
 
-**internal/git/branch.go:**
-- `ListRemoteBranches()`, `ListAllBranches()`, `ListTags()`, `RenameBranch()`
+### Untested Error Scenarios
 
-**internal/git/stash.go:**
-- ALL functions (`ListStashes()`, `CreateStash()`, `PopStashAt()`, `ApplyStash()`, `DropStash()`)
-
-**internal/app/app.go:**
-- `handleDeleteConfirmBranchKeys()`, `handleLayoutKeys()`, `handleStashKeys()`, `handlePruneConfirmKeys()`
-- `handleMouse()`, `sortWorktrees()`
-
-### Priority Test Cases Needed
-
-1. `CheckSafety()` with detached HEAD, empty default branch, git errors
-2. Error handling in `Create()` and `Remove()`
-3. All stash operations
-4. File copying logic with patterns and ignores
-5. Mouse event handling
+- Git command failures (network, permissions)
+- File operations (disk full, read-only)
+- Corrupted cache files
+- Multiplexer not installed
+- Invalid config syntax
 
 ---
 
-## 7. Performance Issues
+## 5. API/Interface Design Issues
 
-### Critical O(n²) Algorithms
+### Inconsistent Function Signatures
 
-| File | Line | Issue | Impact |
-|------|------|-------|--------|
-| `internal/app/app.go` | 513-533 | Nested loop for upstream status updates | High with 100+ worktrees |
-| `internal/app/app.go` | 491-508 | Nested loop for detail panel updates | High with 100+ worktrees |
+| Issue | Location |
+|-------|----------|
+| Enrich functions return void vs error | `worktree.go:107-132` |
+| Some git operations mutate, some return | `repo.go, worktree.go` |
+| CheckSafety() errors recorded in struct, not returned | `safety.go:68-154` |
 
-**Fix:** Use map-based lookups for O(1) access instead of linear search.
+### Functions Doing Too Much
 
-### Inefficient String Operations
+| Function | Lines | Responsibilities |
+|----------|-------|------------------|
+| `Update()` | 340 | 16+ message types |
+| `CheckSafety()` | 85 | 4 distinct checks |
+| `OpenWithConfig()` | 70 | Window detection, templates, open, layout |
 
-| File | Line | Issue |
-|------|------|-------|
-| `internal/app/app.go` | 1462-1489 | Custom `sanitizePath()` reimplements `strings.ReplaceAll()` inefficiently |
-| `internal/ui/render.go` | 24+ locations | `strings.Repeat("─", width)` recreated on every render |
-| `internal/ui/render.go` | 293 | Padding string concatenation in loop |
+### Leaky Abstractions
 
-### Missing Caching
+- `RenderParams` struct has 30+ fields for different states
+- `Worktree` exposes lazy-loaded fields that may be uninitialized
+- `SafetyInfo` has error list AND boolean fields
 
-| File | Line | Issue |
-|------|------|-------|
-| `internal/ui/render.go` | 225, 646 | Column widths recalculated on every render |
-| `internal/app/app.go` | 1568-1641 | Header line count calculated on every mouse event |
+### Package Coupling Issues
 
-### Quick Wins
-
-1. Convert O(n²) loops to O(n) using maps (60-80% improvement for large lists)
-2. Replace custom string sanitization with `strings.ReplaceAll()`
-3. Cache divider strings and column widths
-4. Pre-allocate slice capacity in filter operations
+- `git` package directly calls `ListAndCache()` in `Remove()`
+- `git` package imports `debug` package
+- No interface abstraction for multiplexer backends
 
 ---
 
-## 8. API/Interface Design Issues
-
-### Critical
-
-| Issue | Location | Description |
-|-------|----------|-------------|
-| God Object | `internal/app/app.go:102-163` | `Model` struct has 32+ fields handling 10+ concerns |
-| Leaky Abstraction | `internal/ui/render.go` | `RenderParams` has 42 fields, tightly couples UI to app state |
-
-### Medium
-
-| Issue | Location | Description |
-|-------|----------|-------------|
-| Inconsistent Parameters | `internal/git/status.go` | 4 return values in `GetUpstreamStatus()` |
-| Missing Interface | `internal/exec/open.go` | 10+ switch statements on multiplexer type |
-| Duplicated Constants | `internal/app/app.go` & `internal/ui/render.go` | State constants defined twice |
-| Too Many Parameters | Multiple | Functions with 4+ parameters |
-
-### Recommendations
-
-1. Extract flows (create, delete, filter, rename, stash, layout) into separate state structs
-2. Replace `RenderParams` with view models
-3. Create `Multiplexer` interface for tmux/zellij abstraction
-4. Use structured enums instead of string literals
-
----
-
-## 9. Configuration Validation Issues
+## 6. Performance Issues
 
 ### High Priority
 
-| Issue | Files | Description |
-|-------|-------|-------------|
-| Empty `layout_command` with `layout = "custom"` | `config.go`, `open.go` | No validation when custom layout has empty command |
-| Unvalidated `DefaultBaseBranch` | `app.go:782` | Invalid branch names only caught at usage time |
-| Unvalidated `WorktreeDir` | `app.go:1337` | Empty or "/" would cause issues |
+| Issue | File | Lines |
+|-------|------|-------|
+| Column widths recalculated every render | `render.go` | 225, 646 |
+| ResolvePath() called twice per worktree | `worktree.go` | 74-81 |
+| O(n) linear search for detail updates | `app.go` | 504-519 |
+| Custom O(n²) string replace | `app.go` | 1499-1516 |
 
 ### Medium Priority
 
-| Issue | Description |
-|-------|-------------|
-| Invalid keybinding names accepted | No validation against valid Bubble Tea key names |
-| Copy patterns not validated | Invalid glob patterns silently fail |
-| Conflicting config options not detected | e.g., `layout = "custom"` without `layout_command` |
-| No path expansion for `~` | Tilde not expanded in config paths |
-
-### Recommendations
-
-1. Validate layout_command when layout = "custom"
-2. Validate branch names against git naming rules
-3. Validate glob pattern syntax in copy_patterns
-4. Add cross-field validation for conflicting options
-5. Log config warnings to debug file for later review
+| Issue | File | Lines |
+|-------|------|-------|
+| Branch lookup via linear search | `app.go` | 799-805 |
+| Map created per merged branch check | `safety.go` | 205-210 |
+| Full worktree copy for upstream status | `app.go` | 1441-1445 |
+| Append without pre-allocation | `app.go` | 1211 |
 
 ---
 
-## 10. Documentation & Code Clarity
+## 7. Configuration Validation Gaps
+
+### Completely Unvalidated Config Sections
+
+| Section | Fields |
+|---------|--------|
+| `GeneralConfig` | DefaultBaseBranch, WorktreeDir, Remote |
+| `WorktreeConfig` | CopyPatterns, CopyIgnores |
+| `KeysConfig` | All 16 key bindings |
+
+### Partially Validated
+
+| Field | Missing Validation |
+|-------|-------------------|
+| `Open.Command` | Shell syntax not checked |
+| `Open.LayoutCommand` | Shell syntax not checked |
+| `Pane.SplitFrom` | Negative values not checked |
+| Key bindings | Conflicts not detected |
+
+### Runtime Error Scenarios
+
+1. Invalid WorktreeDir (e.g., `/etc/passwd`) - creates in dangerous location
+2. Bad glob patterns in CopyPatterns - silently skipped
+3. Invalid key syntax - silently ignored or crashes
+4. Negative SplitFrom - potential panic
+
+---
+
+## 8. Documentation Issues
+
+### Missing Godoc Comments
+
+**CRITICAL (Public API):**
+- `Render()` in `ui/render.go`
+- `EchoPath()`, `GetMultiplexer()`, `FindWindowsForPath()`, `CloseWindow()` in `exec/open.go`
+- `Multiplexer` type definition
+
+**HIGH (19 command functions in app.go):**
+- `loadWorktrees()`, `refreshWorktrees()`, `checkSafety()`, `createWorktree()`, `deleteWorktree()`, etc.
 
 ### Missing Package Documentation
 
-| Package | File |
-|---------|------|
-| `app` | `internal/app/app.go` |
-| `git` (partial) | `branch.go`, `stash.go`, `safety.go` |
-| `app` | `keys.go`, `messages.go` |
+- `internal/exec` - No doc.go
+- `internal/git` - No doc.go
 
-### Magic Numbers Without Explanation
+### Misleading Comments
 
-| File | Line | Value | Issue |
-|------|------|-------|-------|
-| `internal/app/app.go` | 170, 182 | 250 | CharLimit - why not 255? |
-| `internal/ui/render.go` | 91-92 | 50 | CommitMsgMaxLen - why 50? |
-| `internal/app/app.go` | 70 | 5 | Sort mode modulo - hardcoded |
-| `internal/ui/render.go` | 84, 87 | 30, 8 | MinWidth/MinHeight - no justification |
+- `worktree.go:95` - `enrichWorktree` ignores `_Repo` param without explanation
+- Lazy-loaded fields not clearly documented
 
-### Complex Logic Needs Documentation
+---
 
-| File | Lines | Description |
-|------|-------|-------------|
-| `internal/app/app.go` | 303-330 | Safety check conditional with 4 nesting levels |
-| `internal/git/worktree.go` | 223-255 | `checkCreateConflicts()` - 5 different checks lumped together |
-| `internal/app/app.go` | 1568-1641 | `listTopLine()` - 73 lines of line counting |
+## 9. Maintainability Issues
 
-### Recommendations
+### God Object
 
-1. Add package documentation to all internal packages
-2. Extract magic numbers to named constants with comments
-3. Add godoc comments to all exported functions
-4. Document complex control flow with decision trees
-5. Standardize comment style across codebase
+**File**: `app.go:102-164`
+
+`Model` struct has **54 fields** spanning:
+- Configuration, List state, Create flow, Delete flow, Filter, Rename flow, Stash flow, Layout flow, UI state
+
+### Very Long Functions
+
+| Function | File | Lines |
+|----------|------|-------|
+| `Update()` | `app.go` | 340+ |
+| `handleListKeys()` | `app.go` | 122 |
+| `renderList()` | `render.go` | 105 |
+| `renderDelete()` | `render.go` | 77 |
+| `renderSelectBase()` | `render.go` | 76 |
+
+### Magic Numbers/Strings
+
+| Value | Location | Purpose |
+|-------|----------|---------|
+| `5` | `app.go:70` | Sort mode count |
+| `250` | `app.go:171` | Branch name char limit |
+| `7` | `worktree.go:176` | Short hash length |
+| `50`, `70`, `40` | `render.go` | Various widths |
+
+### Deep Nesting
+
+- Safety confirmation logic: 3+ levels (`app.go:318-348`)
+- CopyFiles validation: 3+ levels (`worktree.go:365-407`)
+- Path traversal checks: complex conditionals (`worktree.go:552-562`)
 
 ---
 
 ## Summary Statistics
 
-| Category | Issues Found | Critical | Medium | Low |
-|----------|--------------|----------|--------|-----|
-| Error Handling | 13 | 7 | 4 | 2 |
-| Concurrency | 2 | 0 | 0 | 2 |
-| Security | 10 | 1 | 5 | 4 |
-| Code Duplication | 12 | 1 | 6 | 5 |
-| Edge Cases/Bugs | 27 | 4 | 15 | 8 |
-| Test Coverage | 60+ functions | - | - | - |
-| Performance | 14 | 2 | 8 | 4 |
-| API Design | 12 | 2 | 7 | 3 |
-| Config Validation | 12 | 3 | 6 | 3 |
-| Documentation | 20+ | 6 | 10 | 4+ |
+| Category | Critical | High | Medium | Low |
+|----------|----------|------|--------|-----|
+| Error Handling | 3 | 5 | 8 | 2 |
+| Race Conditions | 3 | 3 | 2 | 1 |
+| Code Duplication | - | 6 | 10 | 3 |
+| Test Coverage | 6 | 5 | 4 | - |
+| API Design | - | 4 | 6 | 3 |
+| Performance | - | 4 | 4 | 2 |
+| Config Validation | 2 | 4 | 3 | 2 |
+| Documentation | 2 | 5 | 4 | 3 |
+| Maintainability | - | 3 | 8 | 5 |
+
+**Total Issues Identified: ~120+**
 
 ---
 
-## Priority Fixes
+## Priority Recommendations
 
-### Immediate (Before Release)
+### Short-term
 
-1. Fix O(n²) loops in app.go (performance)
-2. Fix stash cursor bounds issue (crash)
-3. Add path validation to prevent traversal (security)
-4. Fix file permissions to 0700/0600 (security)
+1. Add error handling for ignored errors
+2. Extract repeated code patterns
+3. Add tests for untested functions
+4. Document exported functions
 
-### High Priority
+### Medium-term
 
-5. Add test coverage for safety checks and stash operations
-6. Extract duplicate `resolvePath()` to shared package
-7. Add validation for layout_command with custom layout
-8. Document complex safety check logic
+1. Break down Model struct into sub-components
+2. Refactor Update() into message handlers
+3. Create interfaces for git operations and multiplexers
+4. Add comprehensive config validation
 
-### Medium Priority
+### Long-term
 
-9. Create Multiplexer interface
-10. Extract state from Model into flow-specific structs
-11. Cache column widths and divider strings
-12. Add package documentation
-
----
-
-*Report generated: 2025-12-31*
-*Analysis performed by 10 specialized subagents*
+1. Extract state machine for UI flows
+2. Centralize help text and magic constants
+3. Add performance benchmarks
+4. Improve package boundaries
