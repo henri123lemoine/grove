@@ -26,7 +26,16 @@ sudo mv grove /usr/local/bin/
 
 ### Homebrew (macOS/Linux)
 
-Coming soon.
+```bash
+brew install henri123lemoine/tap/grove
+```
+
+Or add the tap first:
+
+```bash
+brew tap henri123lemoine/tap
+brew install grove
+```
 
 ## Verify Installation
 
@@ -39,6 +48,8 @@ grove --version
 Grove doesn't require shell completion as it's a TUI application. Simply run `grove` in any git repository.
 
 ## Updating
+
+With Homebrew:
 
 ```bash
 go install github.com/henri123lemoine/grove/cmd/grove@latest

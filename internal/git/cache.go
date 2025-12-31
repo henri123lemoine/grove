@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
 // WorktreeCache represents cached worktree data.
@@ -32,18 +33,12 @@ func getCachePath(repoRoot string) string {
 func LoadCache(repoRoot string) *WorktreeCache {
 	path := getCachePath(repoRoot)
 
-	// Open file with shared lock for reading
-	file, err := os.Open(path)
-	if err != nil {
-		return nil
-	}
-	defer file.Close()
-
 	// Acquire shared (read) lock - blocks if exclusive lock is held
-	if err := syscall.Flock(int(file.Fd()), syscall.LOCK_SH); err != nil {
+	fileLock := flock.New(path + ".lock")
+	if err := fileLock.RLock(); err != nil {
 		return nil
 	}
-	defer func() { _ = syscall.Flock(int(file.Fd()), syscall.LOCK_UN) }()
+	defer fileLock.Unlock()
 
 	// Read and parse
 	data, err := os.ReadFile(path)
@@ -82,19 +77,12 @@ func SaveCache(repoRoot string, worktrees []Worktree) error {
 		return err
 	}
 
-	// Use a lock file to coordinate between processes
-	lockPath := path + ".lock"
-	lockFile, err := os.OpenFile(lockPath, os.O_CREATE|os.O_RDWR, 0600)
-	if err != nil {
-		return err
-	}
-	defer lockFile.Close()
-
 	// Acquire exclusive lock - blocks until lock is available
-	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX); err != nil {
+	fileLock := flock.New(path + ".lock")
+	if err := fileLock.Lock(); err != nil {
 		return err
 	}
-	defer func() { _ = syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN) }()
+	defer fileLock.Unlock()
 
 	// Write atomically: write to temp file then rename
 	tmpPath := path + ".tmp"
