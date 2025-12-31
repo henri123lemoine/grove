@@ -195,6 +195,10 @@ func Create(path, branch string, isNewBranch bool, baseBranch string) error {
 	// Prune stale worktree entries to avoid conflicts with recently deleted worktrees
 	_, _ = runGit("worktree", "prune")
 
+	if err := checkCreateConflicts(path, branch); err != nil {
+		return err
+	}
+
 	// Build command arguments
 	args := []string{"worktree", "add"}
 
@@ -210,6 +214,41 @@ func Create(path, branch string, isNewBranch bool, baseBranch string) error {
 	_, err := runGit(args...)
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
+	}
+
+	return nil
+}
+
+// checkCreateConflicts validates worktree creation against existing worktrees.
+func checkCreateConflicts(path, branch string) error {
+	worktrees, err := List()
+	if err != nil {
+		return fmt.Errorf("failed to list worktrees for preflight: %w", err)
+	}
+
+	targetPath := resolvePath(path)
+	for _, wt := range worktrees {
+		wtPath := resolvePath(wt.Path)
+
+		if wtPath == targetPath {
+			return fmt.Errorf("worktree path already registered: %s (run prune or delete the existing worktree)", wt.Path)
+		}
+
+		if branch != "" && !wt.IsDetached && wt.Branch == branch {
+			return fmt.Errorf("branch %q is already checked out at %s", branch, wt.Path)
+		}
+
+		if wt.IsMain {
+			continue
+		}
+
+		if isWithinPath(wtPath, targetPath) {
+			return fmt.Errorf("target path %s is inside existing worktree %s", path, wt.Path)
+		}
+
+		if isWithinPath(targetPath, wtPath) {
+			return fmt.Errorf("target path %s contains existing worktree %s", path, wt.Path)
+		}
 	}
 
 	return nil
@@ -484,4 +523,16 @@ func resolvePath(path string) string {
 		return abs
 	}
 	return resolved
+}
+
+// isWithinPath reports whether child is inside parent (or equal).
+func isWithinPath(parent, child string) bool {
+	rel, err := filepath.Rel(parent, child)
+	if err != nil {
+		return false
+	}
+	if rel == "." {
+		return true
+	}
+	return !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != ".."
 }
