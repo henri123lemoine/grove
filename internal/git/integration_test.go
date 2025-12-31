@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -500,6 +501,157 @@ func TestBranchOperations(t *testing.T) {
 	}
 	if len(branches) != 1 {
 		t.Errorf("Expected 1 branch after delete, got %d", len(branches))
+	}
+}
+
+// TestStashOperations tests all stash operations.
+func TestStashOperations(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Initially should have no stashes
+	stashes, err := ListStashes(repoDir)
+	if err != nil {
+		t.Fatalf("ListStashes failed: %v", err)
+	}
+	if len(stashes) != 0 {
+		t.Errorf("Expected 0 stashes, got %d", len(stashes))
+	}
+
+	// Create an untracked file - stash won't save this without -u flag
+	// So let's modify an existing file instead
+	if err := os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# Modified\n"), 0644); err != nil {
+		t.Fatalf("Failed to modify file: %v", err)
+	}
+
+	// Create a stash
+	output, err := CreateStash(repoDir, "Test stash message")
+	if err != nil {
+		t.Fatalf("CreateStash failed: %v", err)
+	}
+	if output == "" {
+		t.Error("CreateStash should return output")
+	}
+
+	// Should now have 1 stash
+	stashes, err = ListStashes(repoDir)
+	if err != nil {
+		t.Fatalf("ListStashes failed: %v", err)
+	}
+	if len(stashes) != 1 {
+		t.Errorf("Expected 1 stash, got %d", len(stashes))
+	}
+	if stashes[0].Index != 0 {
+		t.Errorf("Expected stash index 0, got %d", stashes[0].Index)
+	}
+	if !strings.Contains(stashes[0].Message, "Test stash message") {
+		t.Errorf("Expected stash message to contain 'Test stash message', got %q", stashes[0].Message)
+	}
+
+	// Apply stash (without dropping)
+	if err := ApplyStash(repoDir, 0); err != nil {
+		t.Fatalf("ApplyStash failed: %v", err)
+	}
+
+	// Verify changes were applied
+	content, err := os.ReadFile(filepath.Join(repoDir, "README.md"))
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+	if string(content) != "# Modified\n" {
+		t.Errorf("Expected modified content, got %q", string(content))
+	}
+
+	// Stash should still exist after apply
+	stashes, err = ListStashes(repoDir)
+	if err != nil {
+		t.Fatalf("ListStashes failed: %v", err)
+	}
+	if len(stashes) != 1 {
+		t.Errorf("Expected stash to still exist after apply, got %d stashes", len(stashes))
+	}
+
+	// Drop the stash
+	if err := DropStash(repoDir, 0); err != nil {
+		t.Fatalf("DropStash failed: %v", err)
+	}
+
+	// Should have no stashes now
+	stashes, err = ListStashes(repoDir)
+	if err != nil {
+		t.Fatalf("ListStashes failed: %v", err)
+	}
+	if len(stashes) != 0 {
+		t.Errorf("Expected 0 stashes after drop, got %d", len(stashes))
+	}
+
+	// Create another stash for pop test
+	if err := os.WriteFile(filepath.Join(repoDir, "README.md"), []byte("# Pop test\n"), 0644); err != nil {
+		t.Fatalf("Failed to modify file: %v", err)
+	}
+	if _, err := CreateStash(repoDir, "Pop test stash"); err != nil {
+		t.Fatalf("CreateStash failed: %v", err)
+	}
+
+	// Pop stash (apply and drop)
+	if err := PopStashAt(repoDir, 0); err != nil {
+		t.Fatalf("PopStashAt failed: %v", err)
+	}
+
+	// Verify changes were applied
+	content, err = os.ReadFile(filepath.Join(repoDir, "README.md"))
+	if err != nil {
+		t.Fatalf("Failed to read file: %v", err)
+	}
+	if string(content) != "# Pop test\n" {
+		t.Errorf("Expected pop test content, got %q", string(content))
+	}
+
+	// Stash should be gone after pop
+	stashes, err = ListStashes(repoDir)
+	if err != nil {
+		t.Fatalf("ListStashes failed: %v", err)
+	}
+	if len(stashes) != 0 {
+		t.Errorf("Expected 0 stashes after pop, got %d", len(stashes))
+	}
+}
+
+// TestStashListEmpty tests ListStashes with empty stash.
+func TestStashListEmpty(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Should return empty slice, not error
+	stashes, err := ListStashes(repoDir)
+	if err != nil {
+		t.Fatalf("ListStashes failed: %v", err)
+	}
+	if stashes == nil {
+		t.Error("ListStashes should return empty slice, not nil")
+	}
+	if len(stashes) != 0 {
+		t.Errorf("Expected empty slice, got %d stashes", len(stashes))
 	}
 }
 
