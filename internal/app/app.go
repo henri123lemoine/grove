@@ -623,6 +623,13 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// Clear any previous error when user takes action
 	m.err = nil
 
+	// Esc clears the filter if one is active
+	if msg.Type == tea.KeyEsc && m.filterInput.Value() != "" {
+		m.filterInput.Reset()
+		m.applyFilter()
+		return m, nil
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Up):
 		if m.cursor > 0 {
