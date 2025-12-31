@@ -168,31 +168,23 @@ command = "custom-command"
 }
 
 func TestDetectEnvironment(t *testing.T) {
-	// Save original env
-	origTmux := os.Getenv("TMUX")
-	origZellij := os.Getenv("ZELLIJ")
-	defer func() {
-		os.Setenv("TMUX", origTmux)
-		os.Setenv("ZELLIJ", origZellij)
-	}()
-
 	// Test tmux detection
-	os.Setenv("TMUX", "/tmp/tmux-123/default,12345,0")
-	os.Setenv("ZELLIJ", "")
+	t.Setenv("TMUX", "/tmp/tmux-123/default,12345,0")
+	t.Setenv("ZELLIJ", "")
 	if env := DetectEnvironment(); env != "tmux" {
 		t.Errorf("Expected 'tmux', got %q", env)
 	}
 
 	// Test zellij detection
-	os.Setenv("TMUX", "")
-	os.Setenv("ZELLIJ", "123")
+	t.Setenv("TMUX", "")
+	t.Setenv("ZELLIJ", "123")
 	if env := DetectEnvironment(); env != "zellij" {
 		t.Errorf("Expected 'zellij', got %q", env)
 	}
 
 	// Test generic
-	os.Setenv("TMUX", "")
-	os.Setenv("ZELLIJ", "")
+	t.Setenv("TMUX", "")
+	t.Setenv("ZELLIJ", "")
 	if env := DetectEnvironment(); env != "generic" {
 		t.Errorf("Expected 'generic', got %q", env)
 	}

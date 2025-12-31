@@ -316,9 +316,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// 4. HasSafetyCheckErrors: Always show confirmation (can't assess risk)
 		//
 		skipConfirmation := false
-		if msg.Info.Level == git.SafetyLevelSafe {
+		switch msg.Info.Level {
+		case git.SafetyLevelSafe:
 			skipConfirmation = true
-		} else if msg.Info.Level == git.SafetyLevelWarning {
+		case git.SafetyLevelWarning:
 			needsDirtyConfirm := msg.Info.HasUncommittedChanges && m.config.Safety.ConfirmDirty
 			needsUnmergedConfirm := !msg.Info.IsMerged && m.config.Safety.ConfirmUnmerged
 			needsUnpushedConfirm := msg.Info.HasUnpushedCommits

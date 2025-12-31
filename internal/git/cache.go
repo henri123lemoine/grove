@@ -38,7 +38,7 @@ func LoadCache(repoRoot string) *WorktreeCache {
 	if err := fileLock.RLock(); err != nil {
 		return nil
 	}
-	defer fileLock.Unlock()
+	defer func() { _ = fileLock.Unlock() }()
 
 	// Read and parse
 	data, err := os.ReadFile(path)
@@ -82,7 +82,7 @@ func SaveCache(repoRoot string, worktrees []Worktree) error {
 	if err := fileLock.Lock(); err != nil {
 		return err
 	}
-	defer fileLock.Unlock()
+	defer func() { _ = fileLock.Unlock() }()
 
 	// Write atomically: write to temp file then rename
 	tmpPath := path + ".tmp"

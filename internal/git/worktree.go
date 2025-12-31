@@ -306,12 +306,8 @@ func cleanupEmptyParentDirs(path string) {
 	worktreesDir := filepath.Join(repo.MainWorktreeRoot, ".worktrees")
 	parent := filepath.Dir(path)
 
-	for {
-		// Stop if we've reached or gone past .worktrees
-		if parent == worktreesDir || !strings.HasPrefix(parent, worktreesDir) {
-			break
-		}
-
+	// Clean up empty parent directories up to .worktrees
+	for parent != worktreesDir && strings.HasPrefix(parent, worktreesDir) {
 		// Check if directory is empty
 		entries, err := os.ReadDir(parent)
 		if err != nil {
@@ -451,7 +447,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	srcInfo, err := srcFile.Stat()
 	if err != nil {
@@ -462,7 +458,7 @@ func copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	_, err = io.Copy(dstFile, srcFile)
 	return err

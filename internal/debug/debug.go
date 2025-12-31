@@ -41,7 +41,7 @@ func Close() {
 	defer mu.Unlock()
 
 	if logFile != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		logFile = nil
 	}
 	enabled = false
@@ -65,7 +65,7 @@ func Log(format string, args ...interface{}) {
 
 	timestamp := time.Now().Format("15:04:05.000")
 	msg := fmt.Sprintf(format, args...)
-	fmt.Fprintf(logFile, "[%s] %s\n", timestamp, msg)
+	_, _ = fmt.Fprintf(logFile, "[%s] %s\n", timestamp, msg)
 }
 
 // Timed logs the duration of an operation. Usage:
