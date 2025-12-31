@@ -69,16 +69,16 @@ func List() ([]Worktree, error) {
 		wt := &worktrees[i]
 
 		// Check if this is the current worktree (fast, no git call)
-		// Use resolvePath to handle symlinks correctly
+		// Use ResolvePath to handle symlinks correctly
 		if cwd != "" {
-			wtPath := resolvePath(wt.Path)
-			cwdPath := resolvePath(cwd)
+			wtPath := ResolvePath(wt.Path)
+			cwdPath := ResolvePath(cwd)
 			wt.IsCurrent = wtPath == cwdPath || strings.HasPrefix(cwdPath, wtPath+string(filepath.Separator))
 		}
 
 		// Check if this is the main worktree (fast, no git call)
-		// Use resolvePath to handle symlinks correctly
-		wt.IsMain = resolvePath(wt.Path) == resolvePath(repo.MainWorktreeRoot) || (repo.IsBare && i == 0)
+		// Use ResolvePath to handle symlinks correctly
+		wt.IsMain = ResolvePath(wt.Path) == ResolvePath(repo.MainWorktreeRoot) || (repo.IsBare && i == 0)
 
 		// Parallelize git operations
 		wg.Add(1)
@@ -231,9 +231,9 @@ func checkCreateConflicts(path, branch string) error {
 		return fmt.Errorf("failed to list worktrees for preflight: %w", err)
 	}
 
-	targetPath := resolvePath(path)
+	targetPath := ResolvePath(path)
 	for _, wt := range worktrees {
-		wtPath := resolvePath(wt.Path)
+		wtPath := ResolvePath(wt.Path)
 
 		if wtPath == targetPath {
 			return fmt.Errorf("worktree path already registered: %s (run prune or delete the existing worktree)", wt.Path)
@@ -364,7 +364,7 @@ func (w *Worktree) BranchShort() string {
 // CopyFiles copies files matching patterns from source to dest worktree.
 func CopyFiles(sourceDir, destDir string, patterns, ignores []string) error {
 	// Resolve source directory for path traversal validation
-	resolvedSource := resolvePath(sourceDir)
+	resolvedSource := ResolvePath(sourceDir)
 
 	for _, pattern := range patterns {
 		// Find files matching pattern
@@ -375,7 +375,7 @@ func CopyFiles(sourceDir, destDir string, patterns, ignores []string) error {
 
 		for _, srcPath := range matches {
 			// Validate path is within source directory (prevent path traversal)
-			resolvedSrc := resolvePath(srcPath)
+			resolvedSrc := ResolvePath(srcPath)
 			if !isWithinPath(resolvedSource, resolvedSrc) {
 				continue
 			}
@@ -535,9 +535,9 @@ func countWorktrees(output string) int {
 	return count
 }
 
-// resolvePath returns the absolute path with symlinks resolved.
+// ResolvePath returns the absolute path with symlinks resolved.
 // Falls back to absolute path if symlink resolution fails.
-func resolvePath(path string) string {
+func ResolvePath(path string) string {
 	abs, err := filepath.Abs(path)
 	if err != nil {
 		return path

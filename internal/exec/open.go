@@ -155,12 +155,12 @@ func findTmuxWindowByPath(path string) string {
 		return ""
 	}
 
-	resolvedPath := resolvePath(path)
+	resolvedPath := git.ResolvePath(path)
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) == 2 {
 			windowID := parts[0]
-			panePath := resolvePath(parts[1])
+			panePath := git.ResolvePath(parts[1])
 			if panePath == resolvedPath || strings.HasPrefix(panePath, resolvedPath+string(filepath.Separator)) {
 				return windowID
 			}
@@ -616,14 +616,14 @@ func findTmuxWindowsForPath(path string) []string {
 	}
 
 	// Resolve symlinks for reliable comparison
-	resolvedPath := resolvePath(path)
+	resolvedPath := git.ResolvePath(path)
 	windowsMap := make(map[string]bool)
 
 	for _, line := range strings.Split(string(output), "\n") {
 		parts := strings.SplitN(line, " ", 2)
 		if len(parts) == 2 {
 			windowID := parts[0]
-			panePath := resolvePath(parts[1])
+			panePath := git.ResolvePath(parts[1])
 			// Check for exact match or if pane is within the worktree
 			if panePath == resolvedPath || strings.HasPrefix(panePath, resolvedPath+string(filepath.Separator)) {
 				windowsMap[windowID] = true
@@ -680,18 +680,4 @@ func closeZellijTab(tabIndex string) error {
 	}
 	closeCmd := exec.Command("zellij", "action", "close-tab")
 	return closeCmd.Run()
-}
-
-// resolvePath returns the absolute path with symlinks resolved.
-// Falls back to absolute path if symlink resolution fails.
-func resolvePath(path string) string {
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return path
-	}
-	resolved, err := filepath.EvalSymlinks(abs)
-	if err != nil {
-		return abs
-	}
-	return resolved
 }
