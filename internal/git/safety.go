@@ -1,6 +1,7 @@
 package git
 
 import (
+	"fmt"
 	"strings"
 )
 
@@ -36,11 +37,15 @@ type SafetyInfo struct {
 	HasUnpushedCommits  bool
 	UnpushedCommitCount int
 
-	IsMerged bool
+	IsMerged         bool
+	MergeStatusKnown bool
 
 	HasUniqueCommits  bool
 	UniqueCommitCount int
 	UniqueCommits     []CommitInfo
+
+	HasSafetyCheckErrors bool
+	SafetyCheckErrors    []string
 }
 
 // CommitInfo represents basic commit information.
@@ -67,11 +72,24 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 	}
 
 	isDetached := isDetachedBranch(branch)
+	recordError := func(format string, args ...interface{}) {
+		info.HasSafetyCheckErrors = true
+		info.SafetyCheckErrors = append(info.SafetyCheckErrors, fmt.Sprintf(format, args...))
+		if info.Level < SafetyLevelWarning {
+			info.Level = SafetyLevelWarning
+		}
+	}
+
+	if defaultBranch == "" {
+		recordError("default branch could not be detected")
+	}
 
 	// 1. Check for uncommitted changes (staged, unstaged, untracked)
 	// These are truly unrecoverable, so this is Danger level
 	isDirty, count, err := GetDirtyStatus(worktreePath)
-	if err == nil && isDirty {
+	if err != nil {
+		recordError("could not check uncommitted changes: %v", err)
+	} else if isDirty {
 		info.HasUncommittedChanges = true
 		info.UncommittedFileCount = count
 		info.Level = SafetyLevelDanger
@@ -82,20 +100,27 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 	if isDetached {
 		// Extract hash from "abc1234 (detached)"
 		commitHash := strings.TrimSuffix(branch, " (detached)")
-		if commitHash != "" {
+		if commitHash != "" && defaultBranch != "" {
 			merged, err := IsBranchMerged(commitHash, defaultBranch)
-			if err == nil {
+			if err != nil {
+				recordError("could not verify merge status: %v", err)
+			} else {
 				info.IsMerged = merged
+				info.MergeStatusKnown = true
 			}
 		}
-	} else if branch != "" && branch != defaultBranch {
+	} else if branch != "" && branch != defaultBranch && defaultBranch != "" {
 		merged, err := IsBranchMerged(branch, defaultBranch)
-		if err == nil {
+		if err != nil {
+			recordError("could not verify merge status: %v", err)
+		} else {
 			info.IsMerged = merged
+			info.MergeStatusKnown = true
 		}
-	} else {
+	} else if defaultBranch != "" {
 		// Default branch is always considered "merged"
 		info.IsMerged = true
+		info.MergeStatusKnown = true
 	}
 
 	// 3. Check for unpushed commits (skip for detached HEAD - no tracking branch)
@@ -113,9 +138,11 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 	// 4. Check for unique commits (the key safety feature)
 	// These are commits that exist ONLY on this branch and not on default
 	// For detached HEAD, we can't determine unique commits easily, so skip
-	if branch != "" && branch != defaultBranch && !isDetached {
+	if branch != "" && branch != defaultBranch && !isDetached && defaultBranch != "" {
 		commits, err := GetUniqueCommits(branch, defaultBranch)
-		if err == nil && len(commits) > 0 {
+		if err != nil {
+			recordError("could not verify unique commits: %v", err)
+		} else if len(commits) > 0 {
 			info.HasUniqueCommits = true
 			info.UniqueCommitCount = len(commits)
 			info.UniqueCommits = commits

@@ -315,6 +315,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			skipConfirmation = !needsDirtyConfirm && !needsUnmergedConfirm && !needsUnpushedConfirm
 		}
 
+		if msg.Info.HasSafetyCheckErrors {
+			skipConfirmation = false
+		}
+
 		if skipConfirmation {
 			// Proceed with deletion immediately
 			force := msg.Info.HasUncommittedChanges

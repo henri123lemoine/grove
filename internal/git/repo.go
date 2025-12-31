@@ -2,6 +2,7 @@
 package git
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
@@ -193,13 +194,8 @@ func detectDefaultBranchWithRemote(configuredRemote string) string {
 	remote := GetPrimaryRemote(configuredRemote)
 
 	// Try to get from remote HEAD
-	output, err := runGit("symbolic-ref", "refs/remotes/"+remote+"/HEAD")
-	if err == nil {
-		ref := strings.TrimSpace(output)
-		prefix := "refs/remotes/" + remote + "/"
-		if strings.HasPrefix(ref, prefix) {
-			return strings.TrimPrefix(ref, prefix)
-		}
+	if branch := detectRemoteHeadBranch(remote); branch != "" {
+		return branch
 	}
 
 	// Try common defaults
@@ -210,8 +206,53 @@ func detectDefaultBranchWithRemote(configuredRemote string) string {
 		}
 	}
 
+	// Try configured init.defaultBranch (if it exists locally)
+	if output, err := runGit("config", "--get", "init.defaultBranch"); err == nil {
+		branch := strings.TrimSpace(output)
+		if branch != "" {
+			if _, err := runGit("rev-parse", "--verify", "refs/heads/"+branch); err == nil {
+				return branch
+			}
+		}
+	}
+
+	// Fallback to current branch if we can't determine a better default
+	if branch, err := CurrentBranch(); err == nil && branch != "" && branch != "HEAD" {
+		return branch
+	}
+
 	// Fallback
 	return "main"
+}
+
+// detectRemoteHeadBranch tries to detect the remote HEAD branch name.
+func detectRemoteHeadBranch(remote string) string {
+	output, err := runGit("symbolic-ref", "refs/remotes/"+remote+"/HEAD")
+	if err == nil {
+		ref := strings.TrimSpace(output)
+		prefix := "refs/remotes/" + remote + "/"
+		if strings.HasPrefix(ref, prefix) {
+			return strings.TrimPrefix(ref, prefix)
+		}
+	}
+
+	output, err = runGit("remote", "show", "-n", remote)
+	if err != nil {
+		return ""
+	}
+
+	scanner := bufio.NewScanner(strings.NewReader(output))
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if strings.HasPrefix(line, "HEAD branch:") {
+			branch := strings.TrimSpace(strings.TrimPrefix(line, "HEAD branch:"))
+			if branch != "" && branch != "(unknown)" && branch != "(not queried)" {
+				return branch
+			}
+		}
+	}
+
+	return ""
 }
 
 // runGit executes a git command and returns the output.

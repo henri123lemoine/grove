@@ -535,7 +535,7 @@ func renderDelete(p RenderParams) string {
 	case git.SafetyLevelSafe:
 		b.WriteString(MergedStyle.Render("✓ Safe to delete") + "\n\n")
 		b.WriteString("• Clean working directory\n")
-		if info.IsMerged {
+		if info.MergeStatusKnown && info.IsMerged {
 			b.WriteString("• Branch merged to default\n")
 		}
 		b.WriteString("\n" + HelpStyle.Render("y confirm • n cancel"))
@@ -548,8 +548,13 @@ func renderDelete(p RenderParams) string {
 		if info.HasUnpushedCommits {
 			b.WriteString(fmt.Sprintf("• %d unpushed commits\n", info.UnpushedCommitCount))
 		}
-		if !info.IsMerged {
+		if info.MergeStatusKnown && !info.IsMerged {
 			b.WriteString("• Branch not merged\n")
+		}
+		if info.HasSafetyCheckErrors {
+			for _, msg := range info.SafetyCheckErrors {
+				b.WriteString(fmt.Sprintf("• %s\n", msg))
+			}
 		}
 		b.WriteString("\n" + HelpStyle.Render("y confirm • n cancel"))
 
@@ -563,6 +568,11 @@ func renderDelete(p RenderParams) string {
 			}
 			msg := truncateMsg(commit.Message, CommitMsgMaxLen)
 			b.WriteString(fmt.Sprintf("  %s %s\n", PathStyle.Render(commit.Hash), msg))
+		}
+		if info.HasSafetyCheckErrors {
+			for _, msg := range info.SafetyCheckErrors {
+				b.WriteString(fmt.Sprintf("\n• %s\n", msg))
+			}
 		}
 		// Check if config requires typing "delete" for unique commits
 		requireTyping := p.Config != nil && p.Config.Safety.RequireTypingForUnique
