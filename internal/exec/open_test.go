@@ -221,3 +221,225 @@ func TestShellQuote(t *testing.T) {
 		})
 	}
 }
+
+// mockBackend is a test implementation of MultiplexerBackend.
+type mockBackend struct {
+	name              string
+	windowName        string
+	defaultCmd        string
+	windowsByPath     map[string]string
+	windowsByName     map[string]string
+	allWindowsForPath map[string][]string
+	switchCalls       []string
+	closeCalls        []string
+	layoutCalls       int
+}
+
+func newMockBackend() *mockBackend {
+	return &mockBackend{
+		name:              "mock",
+		windowName:        "window",
+		defaultCmd:        "mock-open {path}",
+		windowsByPath:     make(map[string]string),
+		windowsByName:     make(map[string]string),
+		allWindowsForPath: make(map[string][]string),
+	}
+}
+
+func (m *mockBackend) Name() string               { return m.name }
+func (m *mockBackend) WindowName() string         { return m.windowName }
+func (m *mockBackend) DefaultOpenCommand() string { return m.defaultCmd }
+
+func (m *mockBackend) FindWindowByPath(path string) string {
+	return m.windowsByPath[path]
+}
+
+func (m *mockBackend) FindWindowByName(name string) string {
+	return m.windowsByName[name]
+}
+
+func (m *mockBackend) SwitchToWindow(windowID string) error {
+	m.switchCalls = append(m.switchCalls, windowID)
+	return nil
+}
+
+func (m *mockBackend) FindWindowsForPath(path string) []string {
+	return m.allWindowsForPath[path]
+}
+
+func (m *mockBackend) CloseWindow(windowID string) error {
+	m.closeCalls = append(m.closeCalls, windowID)
+	return nil
+}
+
+func (m *mockBackend) ApplyNamedLayout(*config.LayoutConfig, *git.Worktree, *git.Repo, *config.Config) error {
+	m.layoutCalls++
+	return nil
+}
+
+// setMockBackend sets a mock backend for testing and returns a cleanup function.
+func setMockBackend(m *mockBackend) func() {
+	old := multiplexerBackend
+	multiplexerBackend = m
+	return func() {
+		multiplexerBackend = old
+	}
+}
+
+func TestWindowExistsFor_ByPath(t *testing.T) {
+	mock := newMockBackend()
+	mock.windowsByPath["/home/user/project/.worktrees/feature"] = "@1"
+	cleanup := setMockBackend(mock)
+	defer cleanup()
+
+	wt := &git.Worktree{
+		Path:   "/home/user/project/.worktrees/feature",
+		Branch: "feature/test",
+	}
+	cfg := config.DefaultConfig()
+	cfg.Open.DetectExisting = "path"
+
+	if !WindowExistsFor(cfg, wt) {
+		t.Error("WindowExistsFor should return true when window exists by path")
+	}
+
+	// Test non-existent path
+	wt2 := &git.Worktree{
+		Path:   "/home/user/project/.worktrees/other",
+		Branch: "other",
+	}
+	if WindowExistsFor(cfg, wt2) {
+		t.Error("WindowExistsFor should return false when window doesn't exist")
+	}
+}
+
+func TestWindowExistsFor_ByName(t *testing.T) {
+	mock := newMockBackend()
+	mock.windowsByName["test"] = "@2"
+	cleanup := setMockBackend(mock)
+	defer cleanup()
+
+	wt := &git.Worktree{
+		Path:   "/home/user/project/.worktrees/feature-test",
+		Branch: "feature/test",
+	}
+	cfg := config.DefaultConfig()
+	cfg.Open.DetectExisting = "name"
+
+	if !WindowExistsFor(cfg, wt) {
+		t.Error("WindowExistsFor should return true when window exists by name")
+	}
+
+	// Test with full window name style
+	cfg.Open.WindowNameStyle = "full"
+	mock.windowsByName["feature/test"] = "@3"
+	if !WindowExistsFor(cfg, wt) {
+		t.Error("WindowExistsFor should use full branch name when configured")
+	}
+}
+
+func TestWindowExistsFor_None(t *testing.T) {
+	mock := newMockBackend()
+	mock.windowsByPath["/some/path"] = "@1"
+	mock.windowsByName["test"] = "@2"
+	cleanup := setMockBackend(mock)
+	defer cleanup()
+
+	wt := &git.Worktree{
+		Path:   "/some/path",
+		Branch: "feature/test",
+	}
+	cfg := config.DefaultConfig()
+	cfg.Open.DetectExisting = "none"
+
+	if WindowExistsFor(cfg, wt) {
+		t.Error("WindowExistsFor should return false when detect_existing is 'none'")
+	}
+}
+
+func TestFindWindowsForPath_WithMock(t *testing.T) {
+	mock := newMockBackend()
+	mock.allWindowsForPath["/project"] = []string{"@1", "@2", "@3"}
+	cleanup := setMockBackend(mock)
+	defer cleanup()
+
+	windows := FindWindowsForPath("/project")
+	if len(windows) != 3 {
+		t.Errorf("Expected 3 windows, got %d", len(windows))
+	}
+
+	// Test empty result
+	windows = FindWindowsForPath("/other")
+	if len(windows) != 0 {
+		t.Errorf("Expected 0 windows for unknown path, got %d", len(windows))
+	}
+}
+
+func TestCloseWindow_WithMock(t *testing.T) {
+	mock := newMockBackend()
+	cleanup := setMockBackend(mock)
+	defer cleanup()
+
+	if err := CloseWindow("@1"); err != nil {
+		t.Errorf("CloseWindow failed: %v", err)
+	}
+	if err := CloseWindow("@2"); err != nil {
+		t.Errorf("CloseWindow failed: %v", err)
+	}
+
+	if len(mock.closeCalls) != 2 {
+		t.Errorf("Expected 2 close calls, got %d", len(mock.closeCalls))
+	}
+	if mock.closeCalls[0] != "@1" || mock.closeCalls[1] != "@2" {
+		t.Errorf("Close calls = %v, want [@1, @2]", mock.closeCalls)
+	}
+}
+
+func TestInMultiplexer_WithMock(t *testing.T) {
+	// Test with active multiplexer
+	mock := newMockBackend()
+	mock.name = "tmux"
+	cleanup := setMockBackend(mock)
+
+	if !InMultiplexer() {
+		t.Error("InMultiplexer should return true when backend has a name")
+	}
+	cleanup()
+
+	// Test with no multiplexer
+	mock2 := newMockBackend()
+	mock2.name = ""
+	cleanup2 := setMockBackend(mock2)
+	defer cleanup2()
+
+	if InMultiplexer() {
+		t.Error("InMultiplexer should return false when backend has empty name")
+	}
+}
+
+func TestGetDefaultOpenCommand_WithMock(t *testing.T) {
+	mock := newMockBackend()
+	mock.defaultCmd = "custom-cmd {path} {branch}"
+	cleanup := setMockBackend(mock)
+	defer cleanup()
+
+	cmd := GetDefaultOpenCommand()
+	if cmd != "custom-cmd {path} {branch}" {
+		t.Errorf("GetDefaultOpenCommand = %q, want %q", cmd, "custom-cmd {path} {branch}")
+	}
+}
+
+func TestBackendCaching(t *testing.T) {
+	// Reset backend
+	ResetBackend()
+	defer ResetBackend()
+
+	// First call should create backend
+	b1 := Backend()
+	// Second call should return same instance
+	b2 := Backend()
+
+	if b1 != b2 {
+		t.Error("Backend() should return cached instance")
+	}
+}
