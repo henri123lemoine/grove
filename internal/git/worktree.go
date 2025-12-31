@@ -436,7 +436,7 @@ func isIgnored(path string, ignores []string) bool {
 // copyFile copies a single file.
 func copyFile(src, dst string) error {
 	// Ensure parent directory exists
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0700); err != nil {
 		return err
 	}
 

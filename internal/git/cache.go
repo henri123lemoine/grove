@@ -62,11 +62,11 @@ func SaveCache(repoRoot string, worktrees []Worktree) error {
 	}
 
 	path := getCachePath(repoRoot)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }
 
 // ListCached returns worktrees from cache if available, otherwise fetches fresh.
