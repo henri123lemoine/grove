@@ -129,6 +129,7 @@ type Model struct {
 	deleteInput         textinput.Model
 	pendingWindowsClose []string // Window/tab IDs to potentially close after delete
 	deletedBranch       string   // Branch name to potentially delete after worktree removal
+	forceDeleteBranch   bool     // Whether to force-delete branch (when it has unique commits)
 
 	// Filter
 	filterInput textinput.Model
@@ -325,6 +326,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			path := m.deleteWorktree.Path
 			m.state = StateList
 			m.deleteWorktree = nil
+			m.forceDeleteBranch = msg.Info.Level == git.SafetyLevelDanger
 			m.safetyInfo = nil
 			return m, deleteWorktree(path, force)
 		}
@@ -855,6 +857,7 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// Proceed with deletion
 		force := m.safetyInfo.HasUncommittedChanges
+		m.forceDeleteBranch = m.safetyInfo.Level == git.SafetyLevelDanger
 		return m, deleteWorktree(m.deleteWorktree.Path, force)
 	}
 
@@ -868,6 +871,7 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// For safe/warning (and danger without RequireTypingForUnique), y confirms, n cancels
 	if isConfirmKey(msg) {
 		force := m.safetyInfo.HasUncommittedChanges
+		m.forceDeleteBranch = m.safetyInfo.Level == git.SafetyLevelDanger
 		return m, deleteWorktree(m.deleteWorktree.Path, force)
 	}
 	if isDenyKey(msg) {
@@ -1107,6 +1111,7 @@ func (m Model) handleBranchDeletionPrompt() (tea.Model, tea.Cmd) {
 	// Skip if no branch to delete or if it's the default branch
 	if m.deletedBranch == "" || m.deletedBranch == m.repo.DefaultBranch {
 		m.deletedBranch = ""
+		m.forceDeleteBranch = false
 		// Use refreshWorktrees to get fresh data after deletion
 		return m, refreshWorktrees
 	}
@@ -1115,8 +1120,10 @@ func (m Model) handleBranchDeletionPrompt() (tea.Model, tea.Cmd) {
 	case "always":
 		// Delete branch immediately
 		branch := m.deletedBranch
+		force := m.forceDeleteBranch
 		m.deletedBranch = ""
-		return m, deleteBranch(branch)
+		m.forceDeleteBranch = false
+		return m, deleteBranch(branch, force)
 	case "ask":
 		// Prompt user
 		m.state = StateDeleteConfirmBranch
@@ -1124,6 +1131,7 @@ func (m Model) handleBranchDeletionPrompt() (tea.Model, tea.Cmd) {
 		return m, refreshWorktrees
 	default: // "never" or any other value
 		m.deletedBranch = ""
+		m.forceDeleteBranch = false
 		// Use refreshWorktrees to get fresh data after deletion
 		return m, refreshWorktrees
 	}
@@ -1136,20 +1144,24 @@ func (m Model) handleDeleteConfirmBranchKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd
 		// But still refresh because the worktree was already deleted
 		m.state = StateList
 		m.deletedBranch = ""
+		m.forceDeleteBranch = false
 		return m, refreshWorktrees
 	}
 
 	if isConfirmKey(msg) {
 		// Delete the branch
 		branch := m.deletedBranch
+		force := m.forceDeleteBranch
 		m.state = StateList
 		m.deletedBranch = ""
-		return m, deleteBranch(branch)
+		m.forceDeleteBranch = false
+		return m, deleteBranch(branch, force)
 	}
 	if isDenyKey(msg) {
 		// Don't delete branch, but still refresh because the worktree was already deleted
 		m.state = StateList
 		m.deletedBranch = ""
+		m.forceDeleteBranch = false
 		return m, refreshWorktrees
 	}
 
@@ -1376,9 +1388,9 @@ func pruneWorktrees() tea.Msg {
 	return PruneCompletedMsg{PrunedCount: count, Err: err}
 }
 
-func deleteBranch(branch string) tea.Cmd {
+func deleteBranch(branch string, force bool) tea.Cmd {
 	return func() tea.Msg {
-		err := git.DeleteBranch(branch, false)
+		err := git.DeleteBranch(branch, force)
 		return BranchDeletedMsg{Branch: branch, Err: err}
 	}
 }
