@@ -68,6 +68,10 @@ func GetLastCommit(worktreePath string) (hash, message, relTime string, err erro
 
 // FetchAll fetches updates for all remotes.
 func FetchAll() error {
-	_, err := runGit("fetch", "--all", "--prune")
+	repo, err := GetRepo()
+	if err != nil {
+		return err
+	}
+	_, err = runGitInDir(repo.MainWorktreeRoot, "fetch", "--all", "--prune")
 	return err
 }

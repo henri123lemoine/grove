@@ -187,13 +187,18 @@ func parseWorktreeList(output string) []Worktree {
 
 // Create creates a new worktree.
 func Create(path, branch string, isNewBranch bool, baseBranch string) error {
+	repo, err := GetRepo()
+	if err != nil {
+		return err
+	}
+
 	// Check if path already exists
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("path already exists: %s (try a different branch name or delete the existing directory)", path)
 	}
 
 	// Prune stale worktree entries to avoid conflicts with recently deleted worktrees
-	_, _ = runGit("worktree", "prune")
+	_, _ = runGitInDir(repo.MainWorktreeRoot, "worktree", "prune")
 
 	if err := checkCreateConflicts(path, branch); err != nil {
 		return err
@@ -211,7 +216,7 @@ func Create(path, branch string, isNewBranch bool, baseBranch string) error {
 		args = append(args, path, branch)
 	}
 
-	_, err := runGit(args...)
+	_, err = runGitInDir(repo.MainWorktreeRoot, args...)
 	if err != nil {
 		return fmt.Errorf("failed to create worktree: %w", err)
 	}
@@ -256,13 +261,18 @@ func checkCreateConflicts(path, branch string) error {
 
 // Remove removes a worktree.
 func Remove(path string, force bool) error {
+	repo, err := GetRepo()
+	if err != nil {
+		return err
+	}
+
 	args := []string{"worktree", "remove"}
 	if force {
 		args = append(args, "--force")
 	}
 	args = append(args, path)
 
-	_, err := runGit(args...)
+	_, err = runGitInDir(repo.MainWorktreeRoot, args...)
 	if err != nil {
 		return fmt.Errorf("failed to remove worktree: %w", err)
 	}
@@ -483,18 +493,23 @@ func copyDir(src, dst string, ignores []string) error {
 // Prune removes stale worktree entries (worktrees that no longer exist on disk).
 // Returns the number of pruned entries.
 func Prune() (int, error) {
+	repo, err := GetRepo()
+	if err != nil {
+		return 0, err
+	}
+
 	// Get current worktrees to count before
-	beforeOutput, _ := runGit("worktree", "list", "--porcelain")
+	beforeOutput, _ := runGitInDir(repo.MainWorktreeRoot, "worktree", "list", "--porcelain")
 	beforeCount := countWorktrees(beforeOutput)
 
 	// Run prune
-	_, err := runGit("worktree", "prune")
+	_, err = runGitInDir(repo.MainWorktreeRoot, "worktree", "prune")
 	if err != nil {
 		return 0, fmt.Errorf("failed to prune worktrees: %w", err)
 	}
 
 	// Get count after
-	afterOutput, _ := runGit("worktree", "list", "--porcelain")
+	afterOutput, _ := runGitInDir(repo.MainWorktreeRoot, "worktree", "list", "--porcelain")
 	afterCount := countWorktrees(afterOutput)
 
 	return beforeCount - afterCount, nil
