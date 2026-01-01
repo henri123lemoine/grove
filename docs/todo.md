@@ -37,6 +37,23 @@
 - [ ] Replace O(n) linear search for detail updates (`app.go:504-519`) with map lookup
 
 ## Features
+
+### Display Improvements (Inspired by Worktrunk)
+- [ ] Add CI status column - Show GitHub Actions / GitLab CI status per worktree (✓ green, ✗ red, ○ pending)
+- [ ] Add PR link display - Show associated pull request number/link when available
+- [ ] Add dev server health indicator - Show if local dev servers are running (useful for parallel agent workflows)
+- [ ] Improve status symbols - Use single-width Unicode symbols (×, ⊂, ⚔) for better terminal alignment
+- [ ] Add squash-merge detection - Beyond just "merged", detect if branch content was squash-merged (commits differ but changes integrated)
+- [ ] Add integration status symbols - Show `⊂` for squash-merged, `⚔` for conflicts, `·` for clean same-commit
+
+### Workflow Features (Inspired by Worktrunk)
+- [ ] Add hooks system - Support `pre-merge`, `post-merge`, `create` hooks for workflow automation
+- [ ] Add LLM commit message generation - Generate commit messages from diffs via external LLM tool
+- [ ] Add consolidated merge command - Combine squash, rebase, merge, and cleanup into single operation
+- [ ] Add fzf-like fuzzy selector - Interactive fuzzy finder for worktree selection (beyond current filter)
+- [ ] Add Claude Code integration - Built-in flag to spawn Claude agent in worktree
+
+### Other
 - [ ] Look into branch pruning options and features
 
 ## Completed
