@@ -6,11 +6,16 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
 	"github.com/henri123lemoine/grove/internal/debug"
 )
+
+// maxWorkers limits concurrent goroutines for worktree enrichment.
+// Uses number of CPUs as a reasonable default.
+var maxWorkers = runtime.NumCPU()
 
 // Worktree represents a Git worktree with its status.
 type Worktree struct {
@@ -85,11 +90,15 @@ func List() ([]Worktree, error) {
 	}
 
 	// Phase 2: Parallelize git operations (after all single-threaded writes complete)
+	// Use a semaphore to limit concurrent goroutines
+	sem := make(chan struct{}, maxWorkers)
 	var wg sync.WaitGroup
 	for i := range worktrees {
 		wt := &worktrees[i]
 		wg.Add(1)
 		go func(wt *Worktree) {
+			sem <- struct{}{}        // acquire
+			defer func() { <-sem }() // release
 			defer wg.Done()
 			enrichWorktree(wt, repo)
 		}(wt)
@@ -112,12 +121,15 @@ func enrichWorktree(wt *Worktree, _ *Repo) {
 // EnrichWorktreesUpstream fetches ahead/behind status for all worktrees.
 // Run this in background after initial load for progressive enhancement.
 func EnrichWorktreesUpstream(worktrees []Worktree) {
+	sem := make(chan struct{}, maxWorkers)
 	var wg sync.WaitGroup
 	for i := range worktrees {
 		wt := &worktrees[i]
 		if wt.Branch != "" && !wt.IsDetached {
 			wg.Add(1)
 			go func(wt *Worktree) {
+				sem <- struct{}{}        // acquire
+				defer func() { <-sem }() // release
 				defer wg.Done()
 				wt.Ahead, wt.Behind, wt.HasUpstream, _ = GetUpstreamStatus(wt.Path, wt.Branch)
 			}(wt)
