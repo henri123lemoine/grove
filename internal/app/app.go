@@ -105,11 +105,13 @@ type Model struct {
 	repo   *git.Repo
 
 	// Data
-	worktrees         []git.Worktree
-	filteredWorktrees []git.Worktree
-	branches          []git.Branch
-	cursor            int
-	viewOffset        int
+	worktrees           []git.Worktree
+	filteredWorktrees   []git.Worktree
+	worktreeIndexByPath map[string]int // path -> index in worktrees for O(1) lookup
+	filteredIndexByPath map[string]int // path -> index in filteredWorktrees for O(1) lookup
+	branches            []git.Branch
+	cursor              int
+	viewOffset          int
 
 	// State
 	state   State
@@ -260,6 +262,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.worktrees = msg.Worktrees
+		m.rebuildWorktreeIndex()
 		m.applyFilter()
 		m.ensureCursorVisible()
 		// If from cache, trigger background refresh + upstream fetch
@@ -281,6 +284,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.worktrees = msg.Worktrees
+		m.rebuildWorktreeIndex()
 		m.applyFilter()
 		m.ensureCursorVisible()
 		// Trigger upstream fetch for fresh data
@@ -494,22 +498,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, loadWorktrees
 
 	case DetailLoadedMsg:
-		// Update worktree with lazy-loaded detail info
-		for i := range m.worktrees {
-			if m.worktrees[i].Path == msg.Path {
-				m.worktrees[i].LastCommitHash = msg.LastCommitHash
-				m.worktrees[i].LastCommitMessage = msg.LastCommitMessage
-				m.worktrees[i].LastCommitTime = msg.LastCommitTime
-				break
-			}
+		// Update worktree with lazy-loaded detail info using O(1) map lookup
+		if i, ok := m.worktreeIndexByPath[msg.Path]; ok {
+			m.worktrees[i].LastCommitHash = msg.LastCommitHash
+			m.worktrees[i].LastCommitMessage = msg.LastCommitMessage
+			m.worktrees[i].LastCommitTime = msg.LastCommitTime
 		}
-		for i := range m.filteredWorktrees {
-			if m.filteredWorktrees[i].Path == msg.Path {
-				m.filteredWorktrees[i].LastCommitHash = msg.LastCommitHash
-				m.filteredWorktrees[i].LastCommitMessage = msg.LastCommitMessage
-				m.filteredWorktrees[i].LastCommitTime = msg.LastCommitTime
-				break
-			}
+		if i, ok := m.filteredIndexByPath[msg.Path]; ok {
+			m.filteredWorktrees[i].LastCommitHash = msg.LastCommitHash
+			m.filteredWorktrees[i].LastCommitMessage = msg.LastCommitMessage
+			m.filteredWorktrees[i].LastCommitTime = msg.LastCommitTime
 		}
 		return m, nil
 
@@ -1197,6 +1195,20 @@ func (m *Model) applyFilter() {
 	// Update cached column widths for render performance
 	widths := ui.CalculateColumnWidths(m.filteredWorktrees)
 	m.cachedColumnWidths = &widths
+
+	// Build path-to-index map for O(1) lookup in filteredWorktrees
+	m.filteredIndexByPath = make(map[string]int, len(m.filteredWorktrees))
+	for i := range m.filteredWorktrees {
+		m.filteredIndexByPath[m.filteredWorktrees[i].Path] = i
+	}
+}
+
+// rebuildWorktreeIndex rebuilds the path-to-index map for m.worktrees.
+func (m *Model) rebuildWorktreeIndex() {
+	m.worktreeIndexByPath = make(map[string]int, len(m.worktrees))
+	for i := range m.worktrees {
+		m.worktreeIndexByPath[m.worktrees[i].Path] = i
+	}
 }
 
 // currentWorktree returns the current worktree (where CWD is), or nil if none.
