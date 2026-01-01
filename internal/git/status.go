@@ -45,14 +45,13 @@ func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, hasUpstr
 
 // GetLastCommit returns information about the last commit in a worktree.
 func GetLastCommit(worktreePath string) (hash, message, relTime string, err error) {
-	// Get all info in one call using a delimiter unlikely to appear in commit messages
-	const delim = "\x00"
-	output, err := runGitInDir(worktreePath, "log", "-1", "--format=%h"+delim+"%s"+delim+"%cr")
+	// Get all info in one call using null byte delimiter (%x00 is git's escape sequence)
+	output, err := runGitInDir(worktreePath, "log", "-1", "--format=%h%x00%s%x00%cr")
 	if err != nil {
 		return "", "", "", err
 	}
 
-	parts := strings.Split(strings.TrimSpace(output), delim)
+	parts := strings.Split(strings.TrimSpace(output), "\x00")
 	if len(parts) >= 1 {
 		hash = parts[0]
 	}

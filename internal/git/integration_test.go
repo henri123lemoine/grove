@@ -287,6 +287,64 @@ func TestDirtyStatusIntegration(t *testing.T) {
 	}
 }
 
+// TestGetLastCommit tests GetLastCommit function.
+func TestGetLastCommit(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Get last commit info (from initial commit)
+	hash, message, relTime, err := GetLastCommit(repoDir)
+	if err != nil {
+		t.Fatalf("GetLastCommit failed: %v", err)
+	}
+	if hash == "" {
+		t.Error("Expected non-empty hash")
+	}
+	if len(hash) < 7 {
+		t.Errorf("Expected short hash of at least 7 chars, got %q", hash)
+	}
+	if message != "Initial commit" {
+		t.Errorf("Expected 'Initial commit', got %q", message)
+	}
+	if relTime == "" {
+		t.Error("Expected non-empty relative time")
+	}
+
+	// Create a new commit
+	testFile := filepath.Join(repoDir, "new.txt")
+	if err := os.WriteFile(testFile, []byte("new content"), 0644); err != nil {
+		t.Fatalf("Failed to write file: %v", err)
+	}
+	if err := runIn(repoDir, "git", "add", "new.txt"); err != nil {
+		t.Fatalf("git add failed: %v", err)
+	}
+	if err := runIn(repoDir, "git", "commit", "-m", "Add new file"); err != nil {
+		t.Fatalf("git commit failed: %v", err)
+	}
+
+	// Check new commit info
+	hash2, message2, _, err := GetLastCommit(repoDir)
+	if err != nil {
+		t.Fatalf("GetLastCommit failed: %v", err)
+	}
+	if hash2 == hash {
+		t.Error("Expected different hash after new commit")
+	}
+	if message2 != "Add new file" {
+		t.Errorf("Expected 'Add new file', got %q", message2)
+	}
+}
+
 // TestSafetyCheck tests the safety check for worktree deletion.
 func TestSafetyCheckIntegration(t *testing.T) {
 	repoDir, cleanup := setupTestRepo(t)
@@ -530,6 +588,170 @@ func TestBranchOperations(t *testing.T) {
 	}
 	if len(branches) != 1 {
 		t.Errorf("Expected 1 branch after delete, got %d", len(branches))
+	}
+}
+
+// TestCurrentBranch tests CurrentBranch function.
+func TestCurrentBranch(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Get current branch
+	branch, err := CurrentBranch()
+	if err != nil {
+		t.Fatalf("CurrentBranch failed: %v", err)
+	}
+	// Should be main or master depending on git version
+	if branch != "main" && branch != "master" {
+		t.Errorf("Expected main or master, got %q", branch)
+	}
+
+	// Create and checkout a new branch
+	if err := runIn(repoDir, "git", "checkout", "-b", "test-branch"); err != nil {
+		t.Fatalf("git checkout failed: %v", err)
+	}
+
+	branch, err = CurrentBranch()
+	if err != nil {
+		t.Fatalf("CurrentBranch failed: %v", err)
+	}
+	if branch != "test-branch" {
+		t.Errorf("Expected test-branch, got %q", branch)
+	}
+}
+
+// TestRenameBranch tests RenameBranch function.
+func TestRenameBranch(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Create a worktree with a branch
+	wtPath := filepath.Join(repoDir, ".worktrees", "feature")
+	if err := Create(wtPath, "feature", true, ""); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = Remove(wtPath, true) }()
+
+	// Rename the branch from within the worktree
+	if err := RenameBranch(wtPath, "feature", "renamed-feature"); err != nil {
+		t.Fatalf("RenameBranch failed: %v", err)
+	}
+
+	// Verify branch was renamed
+	if BranchExists("feature") {
+		t.Error("Old branch 'feature' should not exist")
+	}
+	if !BranchExists("renamed-feature") {
+		t.Error("New branch 'renamed-feature' should exist")
+	}
+}
+
+// TestListTags tests ListTags function.
+func TestListTags(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Initially no tags
+	tags, err := ListTags()
+	if err != nil {
+		t.Fatalf("ListTags failed: %v", err)
+	}
+	if len(tags) != 0 {
+		t.Errorf("Expected 0 tags, got %d", len(tags))
+	}
+
+	// Create a tag
+	if err := runIn(repoDir, "git", "tag", "v1.0.0"); err != nil {
+		t.Fatalf("git tag failed: %v", err)
+	}
+
+	// Should now have 1 tag
+	tags, err = ListTags()
+	if err != nil {
+		t.Fatalf("ListTags failed: %v", err)
+	}
+	if len(tags) != 1 {
+		t.Errorf("Expected 1 tag, got %d", len(tags))
+	}
+	if tags[0].Name != "v1.0.0" {
+		t.Errorf("Expected tag name 'v1.0.0', got %q", tags[0].Name)
+	}
+	if !tags[0].IsTag {
+		t.Error("Tag should have IsTag=true")
+	}
+}
+
+// TestGetWorktreeBranches tests GetWorktreeBranches function.
+func TestGetWorktreeBranches(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	// Get initial worktree branches (just the main branch)
+	branches, err := GetWorktreeBranches()
+	if err != nil {
+		t.Fatalf("GetWorktreeBranches failed: %v", err)
+	}
+	if len(branches) != 1 {
+		t.Errorf("Expected 1 worktree branch, got %d", len(branches))
+	}
+
+	// Create a worktree
+	wtPath := filepath.Join(repoDir, ".worktrees", "feature")
+	if err := Create(wtPath, "feature", true, ""); err != nil {
+		t.Fatalf("Create failed: %v", err)
+	}
+	defer func() { _ = Remove(wtPath, true) }()
+
+	// Should now have 2 worktree branches
+	branches, err = GetWorktreeBranches()
+	if err != nil {
+		t.Fatalf("GetWorktreeBranches failed: %v", err)
+	}
+	if len(branches) != 2 {
+		t.Errorf("Expected 2 worktree branches, got %d", len(branches))
+	}
+	if !branches["feature"] {
+		t.Error("feature branch should be in worktree branches")
 	}
 }
 
