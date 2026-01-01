@@ -75,9 +75,10 @@ type RenderParams struct {
 	PendingWindowsCount int
 	PendingWindowsName  string // "window" for tmux, "tab" for zellij
 	ConfigWarnings      []string
-	LastPruneCount      int    // For displaying prune feedback
-	DeletedBranch       string // Branch to potentially delete after worktree removal
-	SortMode            string // Current sort order
+	LastPruneCount      int           // For displaying prune feedback
+	DeletedBranch       string        // Branch to potentially delete after worktree removal
+	SortMode            string        // Current sort order
+	CachedColumnWidths  *ColumnWidths // Pre-calculated column widths (optional)
 }
 
 // MinWidth is the absolute minimum terminal width we try to support.
@@ -97,8 +98,8 @@ type ColumnWidths struct {
 	Branch int // Max branch name length
 }
 
-// calculateColumnWidths computes column widths across all worktrees.
-func calculateColumnWidths(worktrees []git.Worktree) ColumnWidths {
+// CalculateColumnWidths computes column widths across all worktrees.
+func CalculateColumnWidths(worktrees []git.Worktree) ColumnWidths {
 	var widths ColumnWidths
 	for _, wt := range worktrees {
 		branchLen := len(wt.Branch)
@@ -221,8 +222,13 @@ func renderList(p RenderParams) string {
 		return wrapInBox(b.String(), p.Width, p.Height)
 	}
 
-	// Calculate column widths for table alignment
-	colWidths := calculateColumnWidths(p.Worktrees)
+	// Use cached column widths or calculate
+	var colWidths ColumnWidths
+	if p.CachedColumnWidths != nil {
+		colWidths = *p.CachedColumnWidths
+	} else {
+		colWidths = CalculateColumnWidths(p.Worktrees)
+	}
 
 	// Calculate visible range
 	startIdx := p.ViewOffset
@@ -642,8 +648,13 @@ func renderFilter(p RenderParams) string {
 	if len(p.Worktrees) == 0 {
 		b.WriteString("\n" + PathStyle.Render("No matches found.") + "\n")
 	} else {
-		// Calculate column widths for table alignment
-		colWidths := calculateColumnWidths(p.Worktrees)
+		// Use cached column widths or calculate
+		var colWidths ColumnWidths
+		if p.CachedColumnWidths != nil {
+			colWidths = *p.CachedColumnWidths
+		} else {
+			colWidths = CalculateColumnWidths(p.Worktrees)
+		}
 
 		// Calculate visible range
 		startIdx := p.ViewOffset

@@ -148,14 +148,15 @@ type Model struct {
 	layoutCursor   int
 
 	// UI
-	width          int
-	height         int
-	keys           KeyMap
-	showDetail     bool
-	spinner        spinner.Model
-	configWarnings []string
-	lastPruneCount int      // For displaying prune feedback
-	sortMode       SortMode // Current sort order
+	width              int
+	height             int
+	keys               KeyMap
+	showDetail         bool
+	spinner            spinner.Model
+	configWarnings     []string
+	lastPruneCount     int              // For displaying prune feedback
+	sortMode           SortMode         // Current sort order
+	cachedColumnWidths *ui.ColumnWidths // Cached for render performance
 
 	// Exit behavior
 	shouldQuit       bool
@@ -1192,6 +1193,10 @@ func (m *Model) applyFilter() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
+
+	// Update cached column widths for render performance
+	widths := ui.CalculateColumnWidths(m.filteredWorktrees)
+	m.cachedColumnWidths = &widths
 }
 
 // currentWorktree returns the current worktree (where CWD is), or nil if none.
@@ -1288,6 +1293,7 @@ func (m Model) View() string {
 		LastPruneCount:      m.lastPruneCount,
 		DeletedBranch:       m.deletedBranch,
 		SortMode:            m.sortMode.String(),
+		CachedColumnWidths:  m.cachedColumnWidths,
 	})
 }
 
