@@ -109,6 +109,78 @@ func TestValidate(t *testing.T) {
 			},
 			wantWarning: false,
 		},
+		{
+			name: "absolute worktree_dir",
+			config: &Config{
+				General: GeneralConfig{
+					WorktreeDir: "/absolute/path",
+				},
+			},
+			wantWarning: true,
+		},
+		{
+			name: "path traversal in worktree_dir",
+			config: &Config{
+				General: GeneralConfig{
+					WorktreeDir: "../outside",
+				},
+			},
+			wantWarning: true,
+		},
+		{
+			name: "invalid copy pattern",
+			config: &Config{
+				Worktree: WorktreeConfig{
+					CopyPatterns: []string{"[invalid"},
+				},
+			},
+			wantWarning: true,
+		},
+		{
+			name: "valid copy patterns",
+			config: &Config{
+				Worktree: WorktreeConfig{
+					CopyPatterns: []string{".env*", "config.json"},
+					CopyIgnores:  []string{"node_modules/**", "*.log"},
+				},
+			},
+			wantWarning: false,
+		},
+		{
+			name: "negative split_from",
+			config: &Config{
+				Layouts: []LayoutConfig{
+					{
+						Name: "test",
+						Panes: []PaneConfig{
+							{Command: "vim"},
+							{SplitFrom: -1, Direction: "right"},
+						},
+					},
+				},
+			},
+			wantWarning: true,
+		},
+		{
+			name: "key binding conflict",
+			config: &Config{
+				Keys: KeysConfig{
+					Up:   "k",
+					Down: "k", // Conflict!
+				},
+			},
+			wantWarning: true,
+		},
+		{
+			name: "no key conflicts with comma-separated",
+			config: &Config{
+				Keys: KeysConfig{
+					Up:   "up,k",
+					Down: "down,j",
+				},
+			},
+			wantWarning: false,
+		},
 	}
 
 	for _, tt := range tests {

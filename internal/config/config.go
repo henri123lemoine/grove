@@ -439,6 +439,36 @@ func generateDefaultConfigContent() string {
 func (c *Config) Validate() []string {
 	var warnings []string
 
+	// Validate GeneralConfig
+	if c.General.WorktreeDir != "" {
+		// Check for absolute paths (should be relative)
+		if filepath.IsAbs(c.General.WorktreeDir) {
+			warnings = append(warnings, "general.worktree_dir should be a relative path, not absolute")
+		}
+		// Check for path traversal
+		if strings.Contains(c.General.WorktreeDir, "..") {
+			warnings = append(warnings, "general.worktree_dir should not contain '..'")
+		}
+	}
+
+	// Validate WorktreeConfig copy patterns
+	for _, pattern := range c.Worktree.CopyPatterns {
+		_, err := filepath.Match(pattern, "test")
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("Invalid glob pattern in worktree.copy_patterns: %s (%v)", pattern, err))
+		}
+	}
+	for _, pattern := range c.Worktree.CopyIgnores {
+		// Skip patterns with ** suffix (handled specially)
+		if strings.HasSuffix(pattern, "/**") {
+			continue
+		}
+		_, err := filepath.Match(pattern, "test")
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("Invalid glob pattern in worktree.copy_ignores: %s (%v)", pattern, err))
+		}
+	}
+
 	// Check template variables in command
 	validVars := []string{"{path}", "{branch}", "{branch_short}", "{repo}", "{window_name}"}
 	vars := extractTemplateVars(c.Open.Command)
@@ -567,6 +597,9 @@ func (c *Config) Validate() []string {
 			if i == 0 && pane.SplitFrom != 0 && pane.Direction != "" {
 				warnings = append(warnings, fmt.Sprintf("Layout %s pane 0: first pane should not have split_from set", layout.Name))
 			}
+			if pane.SplitFrom < 0 {
+				warnings = append(warnings, fmt.Sprintf("Layout %s pane %d: split_from cannot be negative", layout.Name, i))
+			}
 			if i > 0 && pane.SplitFrom >= i {
 				warnings = append(warnings, fmt.Sprintf("Layout %s pane %d: split_from (%d) must reference an earlier pane", layout.Name, i, pane.SplitFrom))
 			}
@@ -592,6 +625,44 @@ func (c *Config) Validate() []string {
 					}
 				}
 			}
+		}
+	}
+
+	// Validate key bindings for conflicts
+	keyBindings := map[string][]string{
+		"up":     strings.Split(c.Keys.Up, ","),
+		"down":   strings.Split(c.Keys.Down, ","),
+		"home":   strings.Split(c.Keys.Home, ","),
+		"end":    strings.Split(c.Keys.End, ","),
+		"open":   strings.Split(c.Keys.Open, ","),
+		"new":    strings.Split(c.Keys.New, ","),
+		"delete": strings.Split(c.Keys.Delete, ","),
+		"rename": strings.Split(c.Keys.Rename, ","),
+		"filter": strings.Split(c.Keys.Filter, ","),
+		"fetch":  strings.Split(c.Keys.Fetch, ","),
+		"detail": strings.Split(c.Keys.Detail, ","),
+		"prune":  strings.Split(c.Keys.Prune, ","),
+		"stash":  strings.Split(c.Keys.Stash, ","),
+		"sort":   strings.Split(c.Keys.Sort, ","),
+		"help":   strings.Split(c.Keys.Help, ","),
+		"quit":   strings.Split(c.Keys.Quit, ","),
+	}
+
+	// Build reverse map: key -> action(s)
+	keyToActions := make(map[string][]string)
+	for action, keys := range keyBindings {
+		for _, key := range keys {
+			key = strings.TrimSpace(key)
+			if key != "" {
+				keyToActions[key] = append(keyToActions[key], action)
+			}
+		}
+	}
+
+	// Check for conflicts
+	for key, actions := range keyToActions {
+		if len(actions) > 1 {
+			warnings = append(warnings, fmt.Sprintf("Key '%s' is bound to multiple actions: %s", key, strings.Join(actions, ", ")))
 		}
 	}
 
