@@ -374,15 +374,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 				// No layouts, open directly
 				m.state = StateList
-				// Find current worktree for stash_on_switch
-				var currentWt *git.Worktree
-				for i := range m.worktrees {
-					if m.worktrees[i].IsCurrent {
-						currentWt = &m.worktrees[i]
-						break
-					}
-				}
-				cmds = append(cmds, openWorktree(m.config, newWt, currentWt, nil))
+				cmds = append(cmds, openWorktree(m.config, newWt, m.currentWorktree(), nil))
 			} else {
 				m.state = StateList
 			}
@@ -673,14 +665,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 
 			// No layouts or window already exists, open directly
-			var currentWt *git.Worktree
-			for i := range m.worktrees {
-				if m.worktrees[i].IsCurrent {
-					currentWt = &m.worktrees[i]
-					break
-				}
-			}
-			return m, openWorktree(m.config, wt, currentWt, nil)
+			return m, openWorktree(m.config, wt, m.currentWorktree(), nil)
 		}
 	case key.Matches(msg, m.keys.New):
 		m.state = StateCreate
@@ -779,15 +764,7 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if m.worktrees[i].Branch == branchName {
 				m.state = StateList
 				m.createInput.Reset()
-				// Find current worktree for stash_on_switch
-				var currentWt *git.Worktree
-				for j := range m.worktrees {
-					if m.worktrees[j].IsCurrent {
-						currentWt = &m.worktrees[j]
-						break
-					}
-				}
-				return m, openWorktree(m.config, &m.worktrees[i], currentWt, nil)
+				return m, openWorktree(m.config, &m.worktrees[i], m.currentWorktree(), nil)
 			}
 		}
 
@@ -1055,15 +1032,6 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.layoutWorktree = nil
 		return m, nil
 	case tea.KeyEnter:
-		// Find current worktree for stash_on_switch
-		var currentWt *git.Worktree
-		for i := range m.worktrees {
-			if m.worktrees[i].IsCurrent {
-				currentWt = &m.worktrees[i]
-				break
-			}
-		}
-
 		// Determine selected layout (nil = "None" option)
 		var selectedLayout *config.LayoutConfig
 		if m.layoutCursor < len(m.config.Layouts) {
@@ -1073,7 +1041,7 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		wt := m.layoutWorktree
 		m.state = StateList
 		m.layoutWorktree = nil
-		return m, openWorktree(m.config, wt, currentWt, selectedLayout)
+		return m, openWorktree(m.config, wt, m.currentWorktree(), selectedLayout)
 	}
 
 	switch {
@@ -1224,6 +1192,16 @@ func (m *Model) applyFilter() {
 	if m.cursor < 0 {
 		m.cursor = 0
 	}
+}
+
+// currentWorktree returns the current worktree (where CWD is), or nil if none.
+func (m *Model) currentWorktree() *git.Worktree {
+	for i := range m.worktrees {
+		if m.worktrees[i].IsCurrent {
+			return &m.worktrees[i]
+		}
+	}
+	return nil
 }
 
 // sortWorktrees sorts the filtered worktrees based on the current sort mode.
