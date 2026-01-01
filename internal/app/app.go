@@ -1511,50 +1511,39 @@ func (m Model) visibleItemCount() int {
 	return availableLines
 }
 
-// ensureCursorVisible adjusts viewOffset to keep cursor in visible area.
-func (m *Model) ensureCursorVisible() {
-	visible := m.visibleItemCount()
+// ensureOffsetVisible adjusts offset to keep cursor in visible area.
+// Returns the adjusted offset value.
+func ensureOffsetVisible(cursor, offset, visible int) int {
 	if visible <= 0 {
 		visible = 1
 	}
 
 	// If cursor is above the visible area, scroll up
-	if m.cursor < m.viewOffset {
-		m.viewOffset = m.cursor
+	if cursor < offset {
+		offset = cursor
 	}
 
 	// If cursor is below the visible area, scroll down
-	if m.cursor >= m.viewOffset+visible {
-		m.viewOffset = m.cursor - visible + 1
+	if cursor >= offset+visible {
+		offset = cursor - visible + 1
 	}
 
-	// Ensure viewOffset doesn't go negative
-	if m.viewOffset < 0 {
-		m.viewOffset = 0
+	// Ensure offset doesn't go negative
+	if offset < 0 {
+		offset = 0
 	}
+
+	return offset
+}
+
+// ensureCursorVisible adjusts viewOffset to keep cursor in visible area.
+func (m *Model) ensureCursorVisible() {
+	m.viewOffset = ensureOffsetVisible(m.cursor, m.viewOffset, m.visibleItemCount())
 }
 
 // ensureBaseBranchVisible adjusts baseViewOffset to keep baseBranchIndex in visible area.
 func (m *Model) ensureBaseBranchVisible() {
-	visible := m.visibleBranchCount()
-	if visible <= 0 {
-		visible = 1
-	}
-
-	// If cursor is above the visible area, scroll up
-	if m.baseBranchIndex < m.baseViewOffset {
-		m.baseViewOffset = m.baseBranchIndex
-	}
-
-	// If cursor is below the visible area, scroll down
-	if m.baseBranchIndex >= m.baseViewOffset+visible {
-		m.baseViewOffset = m.baseBranchIndex - visible + 1
-	}
-
-	// Ensure baseViewOffset doesn't go negative
-	if m.baseViewOffset < 0 {
-		m.baseViewOffset = 0
-	}
+	m.baseViewOffset = ensureOffsetVisible(m.baseBranchIndex, m.baseViewOffset, m.visibleBranchCount())
 }
 
 // visibleWorktreeRange returns the range rendered in the list view.
