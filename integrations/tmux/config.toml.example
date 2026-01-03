@@ -18,12 +18,6 @@ detect_existing = "path"
 # Exit grove after opening (recommended for popup usage)
 exit_after_open = true
 
-# Layout to apply after creating new window: "none", "dev", or "custom"
-layout = "none"
-
-# Custom layout command (only if layout = "custom")
-# layout_command = "tmux split-window -h -p 50 -c {path}"
-
 # Window name style: "short" (auth) or "full" (feature/auth)
 window_name_style = "short"
 
@@ -78,7 +72,7 @@ description = "nvim + claude AI assistant"
 panes = [
   { command = "nvim" },
   { split_from = 0, direction = "right", size = 50, command = "claude" },
-  { split_from = 0, direction = "down", size = 33, command = "" }
+  { split_from = 0, direction = "down", size = 33 }
 ]
 
 # Example: simple 50/50 split
@@ -92,7 +86,7 @@ panes = [
 # description = "50/50 editor + shell"
 # panes = [
 #   { command = "nvim" },
-#   { split_from = 0, direction = "right", size = 50, command = "" }
+#   { split_from = 0, direction = "right", size = 50 }
 # ]
 
 # Example: IDE-style with file tree
@@ -106,7 +100,7 @@ panes = [
 # name = "ide"
 # description = "File tree + editor + terminal"
 # panes = [
-#   { command = "" },
+#   { command = "yazi" },
 #   { split_from = 0, direction = "right", size = 80, command = "nvim" },
-#   { split_from = 1, direction = "down", size = 30, command = "" }
+#   { split_from = 1, direction = "down", size = 30, command = "git status -sb" }
 # ]

@@ -2,106 +2,43 @@
 
 Use grove as a popup worktree switcher in tmux.
 
-## Installation
-
-### Using TPM (Tmux Plugin Manager)
+## Quick Setup
 
 Add to your `~/.tmux.conf`:
+
+```tmux
+# Open grove in a popup (prefix + g)
+bind-key g display-popup -E -w 80% -h 80% "grove"
+```
+
+Grove will:
+- Find existing windows by checking pane working directories
+- Switch to them if found
+- Create new windows with `tmux new-window -n {branch_short} -c {path}` if not
+
+## Optional: TPM Plugin
+
+If you prefer TPM, add to `~/.tmux.conf`:
 
 ```tmux
 set -g @plugin 'henri123lemoine/grove'
 ```
 
-Then press `prefix + I` to install.
-
-### Manual Installation
-
-Clone the repo and source the plugin:
-
-```bash
-git clone https://github.com/henri123lemoine/grove ~/.tmux/plugins/grove
-```
-
-Add to `~/.tmux.conf`:
-
-```tmux
-run-shell ~/.tmux/plugins/grove/integrations/tmux/grove.tmux
-```
-
-## Usage
-
-Press `prefix + g` to open grove in a popup window.
-
-## Configuration
+Then press `prefix + I` to install. This binds `prefix + g` to open grove.
 
 ### Custom Key Binding
-
-Change the trigger key in `~/.tmux.conf`:
 
 ```tmux
 set -g @grove-key "w"  # Use prefix + w instead
 ```
 
-### Grove Config for tmux
+## Optional Configuration
 
-Create `~/.config/grove/config.toml`:
-
-```toml
-[open]
-# Create new tmux window with branch name
-command = "tmux new-window -n {branch_short} -c {path}"
-
-# Or switch to existing window if it exists
-# command = "tmux select-window -t :{branch_short} 2>/dev/null || tmux new-window -n {branch_short} -c {path}"
-
-# Exit grove after opening (recommended for popup)
-exit_after_open = true
-
-# Detect existing windows by path
-detect_existing = "path"
-
-# Apply dev layout (split 50/50)
-# layout = "dev"
-```
-
-### Advanced: Custom Layout
-
-Apply a custom layout after creating a new window:
+Only configure if you want to change the defaults:
 
 ```toml
+# ~/.config/grove/config.toml
 [open]
-command = "tmux new-window -n {branch_short} -c {path}"
-layout = "custom"
-layout_command = "tmux split-window -h -p 30 -c {path} && tmux select-pane -L"
+# Use sessions instead of windows
+command = "tmux new-session -d -s {branch_short} -c {path}; tmux switch-client -t {branch_short}"
 ```
-
-## Shell Integration
-
-Add to your `~/.bashrc` or `~/.zshrc`:
-
-```bash
-# Quick worktree switch with cd
-gw() {
-    local path
-    path=$(grove -p)
-    if [ -n "$path" ]; then
-        cd "$path"
-    fi
-}
-
-# Bind to Ctrl+G
-bind '"\C-g": "gw\n"'  # bash
-# bindkey -s '^g' 'gw\n'  # zsh
-```
-
-## Template Variables
-
-Available in open command:
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `{path}` | Full worktree path | `/home/user/project/.worktrees/feature/auth` |
-| `{branch}` | Full branch name | `feature/auth` |
-| `{branch_short}` | Short branch name | `auth` |
-| `{repo}` | Repository name | `my-project` |
-| `{window_name}` | Window name (respects style config) | `auth` or `feature/auth` |
