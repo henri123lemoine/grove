@@ -2,9 +2,13 @@
 
 Use grove as a worktree switcher in Zellij.
 
-**No configuration needed.** Grove auto-detects zellij and handles tab creation automatically.
+## Install
 
-## Quick Setup
+```bash
+brew install henri123lemoine/tap/grove
+```
+
+## Setup
 
 Add to your Zellij config (`~/.config/zellij/config.kdl`):
 

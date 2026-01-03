@@ -1,4 +1,4 @@
-.PHONY: build run clean install test test-quick lint fmt fmt-check check setup-hooks
+.PHONY: build run clean install test test-quick test-bash lint fmt fmt-check check setup-hooks
 
 # Build the binary
 build:
@@ -46,6 +46,10 @@ test:
 # Quick sanity tests for pre-commit (aim to keep under ~1s)
 test-quick:
 	go test ./internal/config -run TestDefaultConfig
+
+# Run bash/shell script tests
+test-bash:
+	bats tests/
 
 # Pre-push check: build + test + lint (run before pushing)
 # This mirrors exactly what CI runs

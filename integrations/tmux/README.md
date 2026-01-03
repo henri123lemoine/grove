@@ -2,42 +2,47 @@
 
 Use grove as a popup worktree switcher in tmux.
 
-## Quick Setup
+## TPM (Recommended)
 
-Add to your `~/.tmux.conf`:
-
-```tmux
-# Open grove in a popup (prefix + g)
-bind-key g display-popup -E -w 80% -h 80% "grove"
-```
-
-Grove will:
-- Find existing windows by checking pane working directories
-- Switch to them if found
-- Create new windows with `tmux new-window -n {branch_short} -c {path}` if not
-
-## Optional: TPM Plugin
-
-If you prefer TPM, add to `~/.tmux.conf`:
+Add to `~/.tmux.conf`:
 
 ```tmux
 set -g @plugin 'henri123lemoine/grove'
 ```
 
-Then press `prefix + I` to install. This binds `prefix + g` to open grove.
+Press `prefix + I` to install. Binds `prefix + w` to open grove.
 
 ### Custom Key Binding
 
 ```tmux
-set -g @grove-key "w"  # Use prefix + w instead
+set -g @grove-key "g"  # Use prefix + g instead
 ```
+
+## Without TPM
+
+If you don't use TPM, install grove separately then add a keybinding:
+
+```bash
+brew install henri123lemoine/tap/grove
+```
+
+```tmux
+# ~/.tmux.conf
+bind-key w display-popup -E -w 80% -h 80% "grove"
+```
+
+## How It Works
+
+Grove auto-detects tmux and:
+- Finds existing windows by checking pane working directories
+- Switches to them if found
+- Creates new windows with `tmux new-window -n {branch_short} -c {path}` if not
 
 ## Optional Configuration
 
-Only configure if you want to change the defaults:
+Override defaults in `~/.config/grove/config.toml`:
 
 ```toml
-# ~/.config/grove/config.toml
 [open]
 # Use sessions instead of windows
 command = "tmux new-session -d -s {branch_short} -c {path}; tmux switch-client -t {branch_short}"
