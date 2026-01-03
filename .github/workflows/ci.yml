@@ -67,6 +67,26 @@ jobs:
           version: latest
           args: --timeout=5m
 
+  test-bash:
+    name: Bash Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bats
+        run: |
+          if [[ "$RUNNER_OS" == "Linux" ]]; then
+            sudo apt-get update && sudo apt-get install -y bats
+          else
+            brew install bats-core
+          fi
+
+      - name: Run bash tests
+        run: bats tests/
+
   build-matrix:
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}

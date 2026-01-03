@@ -1,56 +1,19 @@
 # Integrations
 
-Grove is designed to work with any terminal multiplexer, editor, or workflow. This guide covers common setups.
+Grove works standalone but integrates well with terminal multiplexers and editors.
 
 ## tmux
 
-Grove auto-detects tmux and:
-- Finds existing windows by checking pane working directories
-- Switches to them if found
-- Creates new windows with `tmux new-window -n {branch_short} -c {path}` if not
+Grove auto-detects tmux. See [integrations/tmux](../integrations/tmux/) for setup.
 
-### Popup Integration
-
-Add to your `~/.tmux.conf`:
-
-```bash
-# Open grove in a popup (prefix + g)
-bind-key g display-popup -E -w 80% -h 80% "grove"
-```
-
-### Optional: Use sessions instead of windows
-
-```toml
-# ~/.config/grove/config.toml
-[open]
-command = "tmux new-session -d -s {branch_short} -c {path} 2>/dev/null; tmux switch-client -t {branch_short}"
+**Quick start with TPM:**
+```tmux
+set -g @plugin 'henri123lemoine/grove'
 ```
 
 ## Zellij
 
-Grove auto-detects zellij and:
-- Creates new tabs with `zellij action new-tab --name {branch_short} --cwd {path}`
-- Detects existing tabs by name
-
-### Keybinding
-
-Add to your Zellij config (`~/.config/zellij/config.kdl`):
-
-```kdl
-keybinds {
-    normal {
-        bind "Alt g" { Run "grove" }
-    }
-}
-```
-
-### Optional: Use panes instead of tabs
-
-```toml
-# ~/.config/grove/config.toml
-[open]
-command = "zellij action new-pane --cwd {path}"
-```
+Grove auto-detects zellij. See [integrations/zellij](../integrations/zellij/) for setup.
 
 ## VS Code
 
@@ -58,28 +21,23 @@ command = "zellij action new-pane --cwd {path}"
 # ~/.config/grove/config.toml
 [open]
 command = "code {path}"
-exit_after_open = true
 ```
 
 ## Shell Integration
 
-Use the `-p` flag to print the selected worktree path:
+Use `-p` to print the selected path instead of opening:
 
 ```bash
 cd "$(grove -p)"
 ```
 
-Or create a shell function:
+Or create a function:
 
 ```bash
 # ~/.bashrc or ~/.zshrc
 gw() {
     local path
     path=$(grove -p)
-    if [ -n "$path" ] && [ -d "$path" ]; then
-        cd "$path"
-    fi
+    [ -n "$path" ] && [ -d "$path" ] && cd "$path"
 }
 ```
-
-Now `gw` opens grove, and when you select a worktree, it changes to that directory.
