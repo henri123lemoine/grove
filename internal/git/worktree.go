@@ -216,6 +216,9 @@ func Create(path, branch string, isNewBranch bool, baseBranch string) error {
 		return fmt.Errorf("path already exists: %s (try a different branch name or delete the existing directory)", path)
 	}
 
+	// Ensure the worktree directory is excluded from git tracking
+	ensureWorktreeDirExcluded(path, repo)
+
 	// Prune stale worktree entries to avoid conflicts with recently deleted worktrees
 	_, _ = runGitInDir(repo.MainWorktreeRoot, "worktree", "prune")
 
@@ -305,6 +308,67 @@ func Remove(path string, force bool) error {
 	_, _ = ListAndCache()
 
 	return nil
+}
+
+// ensureWorktreeDirExcluded adds the worktree directory to .git/info/exclude
+// if it's not already there. This prevents worktrees from showing as untracked files.
+func ensureWorktreeDirExcluded(worktreePath string, repo *Repo) {
+	// Get the worktree directory (parent of the actual worktree path)
+	// e.g., if path is "/repo/.worktrees/feature", we want ".worktrees"
+	relPath, err := filepath.Rel(repo.MainWorktreeRoot, worktreePath)
+	if err != nil {
+		return
+	}
+
+	// Get the first directory component (the worktree container dir)
+	parts := strings.SplitN(relPath, string(filepath.Separator), 2)
+	if len(parts) == 0 || parts[0] == "" || parts[0] == "." {
+		return
+	}
+	worktreeDir := parts[0]
+
+	// Don't add if it starts with ".." (worktrees outside repo)
+	if strings.HasPrefix(worktreeDir, "..") {
+		return
+	}
+
+	excludePath := filepath.Join(repo.GitDir, "info", "exclude")
+
+	// Read existing content
+	content, err := os.ReadFile(excludePath)
+	if err != nil && !os.IsNotExist(err) {
+		return
+	}
+
+	// Check if already excluded (with or without trailing slash)
+	lines := strings.Split(string(content), "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == worktreeDir || trimmed == worktreeDir+"/" {
+			return // Already excluded
+		}
+	}
+
+	// Ensure info directory exists
+	infoDir := filepath.Join(repo.GitDir, "info")
+	if err := os.MkdirAll(infoDir, 0755); err != nil {
+		return
+	}
+
+	// Append to exclude file
+	f, err := os.OpenFile(excludePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer func() { _ = f.Close() }()
+
+	// Add newline before entry if file doesn't end with one
+	entry := worktreeDir + "/\n"
+	if len(content) > 0 && content[len(content)-1] != '\n' {
+		entry = "\n" + entry
+	}
+
+	_, _ = f.WriteString(entry)
 }
 
 // cleanupEmptyParentDirs removes empty parent directories up the tree,

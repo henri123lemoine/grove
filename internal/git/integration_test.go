@@ -229,6 +229,65 @@ func TestWorktreeFromExistingBranch(t *testing.T) {
 	_ = Remove(wtPath, false)
 }
 
+// TestWorktreeDirExcluded tests that creating a worktree adds .worktrees to .git/info/exclude.
+func TestWorktreeDirExcluded(t *testing.T) {
+	repoDir, cleanup := setupTestRepo(t)
+	defer cleanup()
+
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(repoDir); err != nil {
+		t.Fatalf("Failed to chdir: %v", err)
+	}
+	defer func() {
+		_ = os.Chdir(originalDir)
+		ResetRepo()
+	}()
+	ResetRepo()
+
+	excludePath := filepath.Join(repoDir, ".git", "info", "exclude")
+
+	// Initially, .worktrees should not be in exclude file
+	content, _ := os.ReadFile(excludePath)
+	if strings.Contains(string(content), ".worktrees") {
+		t.Log("Note: .worktrees already in exclude file (may be from previous test)")
+	}
+
+	// Create a worktree
+	wtPath := filepath.Join(repoDir, ".worktrees", "test-exclude")
+	if err := Create(wtPath, "test-exclude", true, ""); err != nil {
+		t.Fatalf("Create worktree failed: %v", err)
+	}
+	defer func() { _ = Remove(wtPath, false) }()
+
+	// Check that .worktrees is now in the exclude file
+	content, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("Failed to read exclude file: %v", err)
+	}
+
+	if !strings.Contains(string(content), ".worktrees/") {
+		t.Errorf("Expected .worktrees/ in exclude file, got: %s", string(content))
+	}
+
+	// Create another worktree - should not duplicate the entry
+	wtPath2 := filepath.Join(repoDir, ".worktrees", "test-exclude-2")
+	if err := Create(wtPath2, "test-exclude-2", true, ""); err != nil {
+		t.Fatalf("Create second worktree failed: %v", err)
+	}
+	defer func() { _ = Remove(wtPath2, false) }()
+
+	content2, err := os.ReadFile(excludePath)
+	if err != nil {
+		t.Fatalf("Failed to read exclude file: %v", err)
+	}
+
+	// Count occurrences of .worktrees/
+	count := strings.Count(string(content2), ".worktrees/")
+	if count != 1 {
+		t.Errorf("Expected exactly 1 occurrence of .worktrees/ in exclude file, got %d", count)
+	}
+}
+
 // TestDirtyStatus tests dirty status detection.
 func TestDirtyStatusIntegration(t *testing.T) {
 	repoDir, cleanup := setupTestRepo(t)
