@@ -1,4 +1,4 @@
-.PHONY: build run clean install test test-quick test-bash lint fmt fmt-check check setup-hooks
+.PHONY: build run clean install test test-quick test-bash lint fmt fmt-check check setup-hooks release
 
 # Build the binary
 build:
@@ -69,3 +69,7 @@ setup-hooks:
 	@echo 'make check || exit 1' >> .git/hooks/pre-push
 	@chmod +x .git/hooks/pre-push
 	@echo "✓ Pre-push hook installed"
+
+# Create a new release (prompts for version bump type)
+release:
+	@./scripts/release.sh
