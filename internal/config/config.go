@@ -50,12 +50,6 @@ type OpenConfig struct {
 	// Whether to open the worktree after creating it
 	OpenAfterCreate bool `toml:"open_after_create"`
 
-	// Layout to apply after creating new window: "none", "dev", or "custom"
-	Layout string `toml:"layout"`
-
-	// Custom layout command (only if layout = "custom")
-	LayoutCommand string `toml:"layout_command"`
-
 	// Window name style: "short" or "full"
 	WindowNameStyle string `toml:"window_name_style"`
 
@@ -179,8 +173,6 @@ func DefaultConfig() *Config {
 			DetectExisting:  "path",
 			ExitAfterOpen:   true,
 			OpenAfterCreate: true,
-			Layout:          "none",
-			LayoutCommand:   "",
 			WindowNameStyle: "short",
 			StashOnSwitch:   false,
 		},
@@ -359,10 +351,6 @@ func generateDefaultConfigContent() string {
 	fmt.Fprintf(&b, "exit_after_open = %v\n", cfg.Open.ExitAfterOpen)
 	b.WriteString("# Whether to open the worktree after creating it\n")
 	fmt.Fprintf(&b, "open_after_create = %v\n", cfg.Open.OpenAfterCreate)
-	b.WriteString("# Layout to apply after creating new window: \"none\", \"dev\", or \"custom\"\n")
-	fmt.Fprintf(&b, "layout = %q\n", cfg.Open.Layout)
-	b.WriteString("# Custom layout command (only if layout = \"custom\")\n")
-	b.WriteString("# layout_command = \"tmux split-window -h -p 50 -c {path}\"\n")
 	b.WriteString("# Window name style: \"short\" or \"full\"\n")
 	fmt.Fprintf(&b, "window_name_style = %q\n", cfg.Open.WindowNameStyle)
 	b.WriteString("# Stash dirty worktree before switching\n")
@@ -485,49 +473,12 @@ func (c *Config) Validate() []string {
 		}
 	}
 
-	// Check layout command vars too
-	if c.Open.LayoutCommand != "" {
-		layoutVars := extractTemplateVars(c.Open.LayoutCommand)
-		for _, v := range layoutVars {
-			found := false
-			for _, valid := range validVars {
-				if v == valid {
-					found = true
-					break
-				}
-			}
-			if !found {
-				warnings = append(warnings, fmt.Sprintf("Unknown template variable in open.layout_command: %s", v))
-			}
-		}
-	}
-
 	// Check detect_existing value
 	if c.Open.DetectExisting != "" &&
 		c.Open.DetectExisting != "path" &&
 		c.Open.DetectExisting != "name" &&
 		c.Open.DetectExisting != "none" {
 		warnings = append(warnings, fmt.Sprintf("Invalid value for open.detect_existing: %s (expected path, name, or none)", c.Open.DetectExisting))
-	}
-
-	// Check layout value
-	if c.Open.Layout != "" &&
-		c.Open.Layout != "none" &&
-		c.Open.Layout != "dev" &&
-		c.Open.Layout != "custom" {
-		warnings = append(warnings, fmt.Sprintf("Invalid value for open.layout: %s (expected none, dev, or custom)", c.Open.Layout))
-	}
-
-	// Warn if layout is set but command doesn't look like tmux
-	if c.Open.Layout != "" && c.Open.Layout != "none" {
-		if !strings.Contains(c.Open.Command, "tmux") {
-			warnings = append(warnings, "Layout is configured but open.command doesn't appear to use tmux")
-		}
-	}
-
-	// Check that layout_command is set when layout = "custom"
-	if c.Open.Layout == "custom" && strings.TrimSpace(c.Open.LayoutCommand) == "" {
-		warnings = append(warnings, "layout = \"custom\" requires layout_command to be set")
 	}
 
 	// Check window_name_style value

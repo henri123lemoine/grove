@@ -53,15 +53,6 @@ func TestValidate(t *testing.T) {
 			wantWarning: true,
 		},
 		{
-			name: "invalid layout",
-			config: &Config{
-				Open: OpenConfig{
-					Layout: "invalid",
-				},
-			},
-			wantWarning: true,
-		},
-		{
 			name: "invalid window_name_style",
 			config: &Config{
 				Open: OpenConfig{
@@ -84,27 +75,6 @@ func TestValidate(t *testing.T) {
 			config: &Config{
 				Open: OpenConfig{
 					Command: "tmux new-window -n {branch_short} -c {path}",
-				},
-			},
-			wantWarning: false,
-		},
-		{
-			name: "custom layout without layout_command",
-			config: &Config{
-				Open: OpenConfig{
-					Command: "tmux new-window -c {path}",
-					Layout:  "custom",
-				},
-			},
-			wantWarning: true,
-		},
-		{
-			name: "custom layout with layout_command",
-			config: &Config{
-				Open: OpenConfig{
-					Command:       "tmux new-window -c {path}",
-					Layout:        "custom",
-					LayoutCommand: "tmux split-window -h",
 				},
 			},
 			wantWarning: false,

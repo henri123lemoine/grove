@@ -118,10 +118,6 @@ func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutC
 		if err := backend.ApplyNamedLayout(layout, wt, repo, cfg); err != nil {
 			return isNewWindow, fmt.Errorf("window opened but layout failed: %w", err)
 		}
-	} else if isNewWindow && cfg.Open.Layout != "none" && cfg.Open.Layout != "" {
-		if err := applyLayout(cfg, wt, repo); err != nil {
-			return isNewWindow, fmt.Errorf("window opened but layout failed: %w", err)
-		}
 	}
 
 	return isNewWindow, nil
@@ -143,47 +139,6 @@ func WindowExistsFor(cfg *config.Config, wt *git.Worktree) bool {
 	default:
 		return false
 	}
-}
-
-// applyLayout applies the configured layout after creating a new window (legacy system).
-func applyLayout(cfg *config.Config, wt *git.Worktree, repo *git.Repo) error {
-	inTmux := os.Getenv("TMUX") != ""
-	inZellij := os.Getenv("ZELLIJ") != ""
-
-	// No layout support outside of multiplexers
-	if !inTmux && !inZellij {
-		return nil
-	}
-
-	// Determine window name to target (the newly created window)
-	windowName := wt.BranchShort()
-	if cfg.Open.WindowNameStyle == "full" {
-		windowName = wt.Branch
-	}
-
-	var layoutCmd string
-	switch cfg.Open.Layout {
-	case "dev":
-		// Default dev layout: split horizontally 50/50
-		if inTmux {
-			layoutCmd = "tmux split-window -h -p 50 -t " + shellQuote(windowName) + " -c " + shellQuote(wt.Path)
-		} else if inZellij {
-			layoutCmd = "zellij action new-pane --direction right --cwd " + shellQuote(wt.Path)
-		}
-	case "custom":
-		if cfg.Open.LayoutCommand != "" {
-			layoutCmd = expandTemplate(cfg.Open.LayoutCommand, wt, repo, cfg)
-		}
-	}
-
-	if layoutCmd == "" {
-		return nil
-	}
-
-	cmd := exec.Command("sh", "-c", layoutCmd)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	return cmd.Run()
 }
 
 // expandTemplate expands template variables in the command.
