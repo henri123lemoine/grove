@@ -117,34 +117,10 @@ Usage:
   grove [flags]
 
 Flags:
-  -p, --print-selected  Print the selected worktree path on exit
-                        Useful for shell integration: cd "$(grove -p)"
-  --debug               Enable debug logging to ~/.cache/grove/debug.log
+  -p, --print-selected  Print selected worktree path on exit
+  --debug               Enable debug logging
   --version             Show version
   -h, --help            Show this help
 
-Navigation:
-  ↑/k          Move up
-  ↓/j          Move down
-  g/Home       Go to first
-  G/End        Go to last
-  enter        Open worktree
-
-Actions:
-  n            New worktree
-  d            Delete worktree
-  r            Rename branch
-  f            Fetch all remotes
-  /            Filter worktrees
-  tab          Toggle detail panel
-
-General:
-  ?            Show help
-  q            Quit
-  esc          Cancel
-
-Configuration:
-  Config file: ~/.config/grove/config.toml
-
-For more information, see https://github.com/henri123lemoine/grove`)
+Press ? inside grove for keybindings.`)
 }
