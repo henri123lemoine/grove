@@ -1222,8 +1222,14 @@ func (m *Model) currentWorktree() *git.Worktree {
 }
 
 // sortWorktrees sorts the filtered worktrees based on the current sort mode.
+// When a filter is active, sorting is skipped to preserve fuzzy match ranking.
 func (m *Model) sortWorktrees() {
 	if len(m.filteredWorktrees) == 0 {
+		return
+	}
+
+	// Preserve fuzzy match score ordering when filter is active
+	if m.filterInput.Value() != "" {
 		return
 	}
 
