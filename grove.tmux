@@ -31,7 +31,7 @@ detect_platform() {
     arch=$(uname -m)
 
     case "$arch" in
-        x86_64|amd64) arch="amd64" ;;
+        x86_64|amd64) arch="x86_64" ;;
         aarch64|arm64) arch="arm64" ;;
         *)
             tmux display-message "Grove: Unsupported architecture: $arch"
@@ -121,7 +121,7 @@ ensure_grove() {
 
         if [ -n "$latest_version" ] && [ "$installed_version" != "$latest_version" ]; then
             # Update available, download in background
-            download_grove &
+            download_grove &>/dev/null &
         fi
 
         echo "$GROVE_BIN"

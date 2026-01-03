@@ -10,7 +10,7 @@ setup() {
 
     # Source the functions from grove.tmux (without running main)
     # We extract just the functions we need to test
-    source <(sed -n '/^get_tmux_option/,/^}/p; /^detect_platform/,/^}/p; /^get_latest_version/,/^}/p; /^get_installed_version/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")
+    eval "$(sed -n '/^get_tmux_option/,/^}/p; /^detect_platform/,/^}/p; /^get_latest_version/,/^}/p; /^get_installed_version/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")"
 }
 
 teardown() {
@@ -34,7 +34,7 @@ export -f tmux
 @test "detect_platform returns valid format" {
     run detect_platform
     [ "$status" -eq 0 ]
-    [[ "$output" =~ ^(darwin|linux)_(amd64|arm64)$ ]]
+    [[ "$output" =~ ^(darwin|linux)_(x86_64|arm64)$ ]]
 }
 
 @test "detect_platform matches current system" {
@@ -107,7 +107,7 @@ export -f tmux
     fi
 
     # Source download function
-    source <(sed -n '/^download_grove/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")
+    eval "$(sed -n '/^download_grove/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")"
 
     run download_grove
     [ "$status" -eq 0 ]
@@ -133,7 +133,7 @@ EOF
     export PATH="$TEST_DIR/fake_bin:$PATH"
 
     # Source ensure_grove
-    source <(sed -n '/^ensure_grove/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")
+    eval "$(sed -n '/^ensure_grove/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")"
 
     run ensure_grove
     [ "$status" -eq 0 ]
@@ -154,7 +154,7 @@ EOF
     echo "v0.1.0" > "$VERSION_FILE"
 
     # Source ensure_grove (need detect_platform and get_latest_version too)
-    source <(sed -n '/^detect_platform/,/^}/p; /^get_latest_version/,/^}/p; /^get_installed_version/,/^}/p; /^download_grove/,/^}/p; /^ensure_grove/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")
+    eval "$(sed -n '/^detect_platform/,/^}/p; /^get_latest_version/,/^}/p; /^get_installed_version/,/^}/p; /^download_grove/,/^}/p; /^ensure_grove/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")"
 
     run ensure_grove
     [ "$status" -eq 0 ]
