@@ -14,6 +14,7 @@ const (
 	StateList = iota
 	StateCreate
 	StateCreateSelectBase
+	StateCreateSelectBaseFilter
 	StateDelete
 	StateDeleteConfirmCloseWindow
 	StateDeleteConfirmBranch
@@ -58,9 +59,12 @@ type RenderParams struct {
 	SafetyInfo          *git.SafetyInfo
 	DeleteInput         string
 	Branches            []git.Branch
+	FilteredBranches    []git.Branch
 	BaseBranchIndex     int
 	BaseViewOffset      int
 	VisibleBranchCount  int
+	BranchFilterInput   string
+	BranchFilterValue   string
 	CreateBranch        string
 	ShowDetail          bool
 	RenameWorktree      *git.Worktree
@@ -138,6 +142,8 @@ func Render(p RenderParams) string {
 		return renderCreate(p)
 	case StateCreateSelectBase:
 		return renderSelectBase(p)
+	case StateCreateSelectBaseFilter:
+		return renderSelectBaseFilter(p)
 	case StateDelete:
 		return renderDelete(p)
 	case StateDeleteConfirmCloseWindow:
@@ -439,13 +445,28 @@ func renderSelectBase(p RenderParams) string {
 	var b strings.Builder
 	contentWidth := p.Width - 4
 
-	b.WriteString(HeaderStyle.Render("SELECT BASE BRANCH") + "\n")
+	header := HeaderStyle.Render("SELECT BASE BRANCH")
+	// Show active filter indicator
+	if p.BranchFilterValue != "" {
+		header += "  " + DirtyStyle.Render("[filter: "+p.BranchFilterValue+"]")
+	}
+	b.WriteString(header + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
 
 	b.WriteString("New branch: " + SelectedStyle.Render(p.CreateBranch) + "\n\n")
 
-	if len(p.Branches) == 0 {
-		b.WriteString(PathStyle.Render("No branches found. Press Enter to use HEAD.\n"))
+	// Use filtered branches if available, fall back to all branches
+	branches := p.FilteredBranches
+	if len(branches) == 0 && p.BranchFilterValue == "" {
+		branches = p.Branches
+	}
+
+	if len(branches) == 0 {
+		if p.BranchFilterValue != "" {
+			b.WriteString(PathStyle.Render("No matching branches found.\n"))
+		} else {
+			b.WriteString(PathStyle.Render("No branches found. Press Enter to use HEAD.\n"))
+		}
 	} else {
 		showBranchTypes := true
 		if p.Config != nil {
@@ -455,10 +476,10 @@ func renderSelectBase(p RenderParams) string {
 		// Calculate visible range
 		startIdx := p.BaseViewOffset
 		endIdx := p.BaseViewOffset + p.VisibleBranchCount
-		if endIdx > len(p.Branches) {
-			endIdx = len(p.Branches)
+		if endIdx > len(branches) {
+			endIdx = len(branches)
 		}
-		if startIdx >= len(p.Branches) {
+		if startIdx >= len(branches) {
 			startIdx = 0
 		}
 
@@ -468,7 +489,7 @@ func renderSelectBase(p RenderParams) string {
 		}
 
 		for i := startIdx; i < endIdx; i++ {
-			branch := p.Branches[i]
+			branch := branches[i]
 			cursor := "  "
 			name := branch.Name
 			if i == p.BaseBranchIndex {
@@ -502,13 +523,96 @@ func renderSelectBase(p RenderParams) string {
 		}
 
 		// Show scroll indicator if items below
-		if endIdx < len(p.Branches) {
-			b.WriteString(PathStyle.Render(fmt.Sprintf("  ↓ %d more below", len(p.Branches)-endIdx)) + "\n")
+		if endIdx < len(branches) {
+			b.WriteString(PathStyle.Render(fmt.Sprintf("  ↓ %d more below", len(branches)-endIdx)) + "\n")
 		}
 	}
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
-	b.WriteString(HelpStyle.Render("↑/↓ select • enter confirm • esc cancel"))
+	b.WriteString(HelpStyle.Render("↑/↓ select • / filter • enter confirm • esc cancel"))
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderSelectBaseFilter renders the branch filter mode.
+func renderSelectBaseFilter(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("FILTER BRANCHES") + "  ")
+	b.WriteString(p.BranchFilterInput + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	b.WriteString("New branch: " + SelectedStyle.Render(p.CreateBranch) + "\n\n")
+
+	// Use filtered branches
+	branches := p.FilteredBranches
+
+	if len(branches) == 0 {
+		b.WriteString(PathStyle.Render("No matching branches found.\n"))
+	} else {
+		showBranchTypes := true
+		if p.Config != nil {
+			showBranchTypes = p.Config.UI.ShowBranchTypes
+		}
+
+		// Calculate visible range
+		startIdx := p.BaseViewOffset
+		endIdx := p.BaseViewOffset + p.VisibleBranchCount
+		if endIdx > len(branches) {
+			endIdx = len(branches)
+		}
+		if startIdx >= len(branches) {
+			startIdx = 0
+		}
+
+		// Show scroll indicator if items above
+		if startIdx > 0 {
+			b.WriteString(PathStyle.Render(fmt.Sprintf("  ↑ %d more above", startIdx)) + "\n")
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			branch := branches[i]
+			cursor := "  "
+			name := branch.Name
+			if i == p.BaseBranchIndex {
+				cursor = SelectedStyle.Render("› ")
+				name = SelectedStyle.Render(name)
+			} else {
+				name = NormalStyle.Render(name)
+			}
+
+			// Add type indicator
+			typeIndicator := ""
+			if showBranchTypes {
+				if branch.IsTag {
+					typeIndicator = GitTagStyle.Render(" [tag]")
+				} else if branch.IsWorktree {
+					typeIndicator = WorktreeTagStyle.Render(" [worktree]")
+				} else if branch.IsRemote {
+					typeIndicator = RemoteTagStyle.Render(" [remote]")
+				} else {
+					typeIndicator = LocalTagStyle.Render(" [local]")
+				}
+			}
+
+			// Add current indicator
+			currentIndicator := ""
+			if branch.IsCurrent {
+				currentIndicator = CurrentStyle.Render(" (current)")
+			}
+
+			b.WriteString(cursor + name + typeIndicator + currentIndicator + "\n")
+		}
+
+		// Show scroll indicator if items below
+		if endIdx < len(branches) {
+			b.WriteString(PathStyle.Render(fmt.Sprintf("  ↓ %d more below", len(branches)-endIdx)) + "\n")
+		}
+	}
+
+	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
+	b.WriteString(HelpStyle.Render("enter select • esc clear"))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }

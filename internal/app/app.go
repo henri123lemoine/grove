@@ -26,6 +26,7 @@ const (
 	StateList State = iota
 	StateCreate
 	StateCreateSelectBase
+	StateCreateSelectBaseFilter
 	StateDelete
 	StateDeleteConfirmCloseWindow
 	StateDeleteConfirmBranch
@@ -119,11 +120,13 @@ type Model struct {
 	err     error
 
 	// Create flow
-	createInput     textinput.Model
-	createBranch    string
-	createIsNew     bool
-	baseBranchIndex int
-	baseViewOffset  int
+	createInput      textinput.Model
+	createBranch     string
+	createIsNew      bool
+	baseBranchIndex  int
+	baseViewOffset   int
+	baseBranchFilter textinput.Model
+	filteredBranches []git.Branch
 
 	// Delete flow
 	deleteWorktree      *git.Worktree
@@ -185,24 +188,29 @@ func New(cfg *config.Config, repo *git.Repo, configWarnings []string) Model {
 	renameInput.Placeholder = "new-branch-name"
 	renameInput.CharLimit = 250 // Git supports up to 255 bytes
 
+	baseBranchFilter := textinput.New()
+	baseBranchFilter.Placeholder = "filter branches..."
+	baseBranchFilter.CharLimit = 100
+
 	// Initialize spinner with dots style
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 
 	return Model{
-		config:         cfg,
-		repo:           repo,
-		keys:           KeyMapFromConfig(&cfg.Keys),
-		createInput:    createInput,
-		deleteInput:    deleteInput,
-		filterInput:    filterInput,
-		renameInput:    renameInput,
-		spinner:        s,
-		state:          StateList,
-		loading:        true,
-		configWarnings: configWarnings,
-		sortMode:       ParseSortMode(cfg.UI.DefaultSort),
+		config:           cfg,
+		repo:             repo,
+		keys:             KeyMapFromConfig(&cfg.Keys),
+		createInput:      createInput,
+		deleteInput:      deleteInput,
+		filterInput:      filterInput,
+		renameInput:      renameInput,
+		baseBranchFilter: baseBranchFilter,
+		spinner:          s,
+		state:            StateList,
+		loading:          true,
+		configWarnings:   configWarnings,
+		sortMode:         ParseSortMode(cfg.UI.DefaultSort),
 	}
 }
 
@@ -555,6 +563,8 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleCreateKeys(msg)
 	case StateCreateSelectBase:
 		return m.handleSelectBaseKeys(msg)
+	case StateCreateSelectBaseFilter:
+		return m.handleSelectBaseFilterKeys(msg)
 	case StateDelete:
 		return m.handleDeleteKeys(msg)
 	case StateDeleteConfirmCloseWindow:
@@ -771,10 +781,12 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.createIsNew = !git.BranchExists(branchName)
 		if m.createIsNew {
 			m.state = StateCreateSelectBase
+			// Initialize filtered branches
+			m.applyBranchFilter()
 			// Pre-select the configured default base branch if it exists in the list
 			m.baseBranchIndex = 0
 			if m.config.General.DefaultBaseBranch != "" {
-				for i, b := range m.branches {
+				for i, b := range m.filteredBranches {
 					if b.Name == m.config.General.DefaultBaseBranch {
 						m.baseBranchIndex = i
 						break
@@ -795,6 +807,21 @@ func (m Model) handleCreateKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // handleSelectBaseKeys handles key presses when selecting base branch.
 func (m Model) handleSelectBaseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Esc clears the filter if one is active, otherwise cancels
+	if msg.Type == tea.KeyEsc {
+		if m.baseBranchFilter.Value() != "" {
+			m.baseBranchFilter.Reset()
+			m.applyBranchFilter()
+			return m, nil
+		}
+		m.state = StateList
+		m.createInput.Reset()
+		m.baseViewOffset = 0
+		m.baseBranchFilter.Reset()
+		m.filteredBranches = nil
+		return m, nil
+	}
+
 	switch {
 	case key.Matches(msg, m.keys.Up):
 		if m.baseBranchIndex > 0 {
@@ -802,24 +829,62 @@ func (m Model) handleSelectBaseKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.ensureBaseBranchVisible()
 		}
 	case key.Matches(msg, m.keys.Down):
-		if m.baseBranchIndex < len(m.branches)-1 {
+		if m.baseBranchIndex < len(m.filteredBranches)-1 {
 			m.baseBranchIndex++
 			m.ensureBaseBranchVisible()
 		}
-	case key.Matches(msg, m.keys.Cancel):
-		m.state = StateList
-		m.createInput.Reset()
-		m.baseViewOffset = 0
-		return m, nil
+	case key.Matches(msg, m.keys.Filter):
+		m.state = StateCreateSelectBaseFilter
+		m.baseBranchFilter.Focus()
+		return m, textinput.Blink
 	case key.Matches(msg, m.keys.Confirm):
 		baseBranch := ""
-		if m.baseBranchIndex < len(m.branches) {
-			baseBranch = m.branches[m.baseBranchIndex].Name
+		if m.baseBranchIndex < len(m.filteredBranches) {
+			baseBranch = m.filteredBranches[m.baseBranchIndex].Name
 		}
 		m.baseViewOffset = 0
+		m.baseBranchFilter.Reset()
+		m.filteredBranches = nil
 		return m, createWorktree(m.config, m.createBranch, true, baseBranch)
 	}
 	return m, nil
+}
+
+// handleSelectBaseFilterKeys handles key presses when filtering base branch list.
+func (m Model) handleSelectBaseFilterKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		// Remember the currently selected branch before clearing filter
+		var selectedName string
+		if m.baseBranchIndex >= 0 && m.baseBranchIndex < len(m.filteredBranches) {
+			selectedName = m.filteredBranches[m.baseBranchIndex].Name
+		}
+
+		m.state = StateCreateSelectBase
+		m.baseBranchFilter.Reset()
+		m.applyBranchFilter()
+
+		// Try to restore cursor to the same branch
+		if selectedName != "" {
+			for i, b := range m.filteredBranches {
+				if b.Name == selectedName {
+					m.baseBranchIndex = i
+					break
+				}
+			}
+		}
+		m.ensureBaseBranchVisible()
+		return m, nil
+	case tea.KeyEnter:
+		m.state = StateCreateSelectBase
+		m.baseBranchFilter.Blur()
+		return m, nil
+	}
+
+	var cmd tea.Cmd
+	m.baseBranchFilter, cmd = m.baseBranchFilter.Update(msg)
+	m.applyBranchFilter()
+	return m, cmd
 }
 
 // handleDeleteKeys handles key presses in the delete confirmation.
@@ -1164,6 +1229,17 @@ func (w worktreeSource) Len() int {
 	return len(w)
 }
 
+// branchSource implements fuzzy.Source for branch fuzzy matching.
+type branchSource []git.Branch
+
+func (b branchSource) String(i int) string {
+	return b[i].Name
+}
+
+func (b branchSource) Len() int {
+	return len(b)
+}
+
 // applyFilter filters worktrees based on current filter input using fuzzy matching.
 func (m *Model) applyFilter() {
 	filter := m.filterInput.Value()
@@ -1200,6 +1276,32 @@ func (m *Model) applyFilter() {
 	m.filteredIndexByPath = make(map[string]int, len(m.filteredWorktrees))
 	for i := range m.filteredWorktrees {
 		m.filteredIndexByPath[m.filteredWorktrees[i].Path] = i
+	}
+}
+
+// applyBranchFilter filters branches based on current branch filter input using fuzzy matching.
+func (m *Model) applyBranchFilter() {
+	filter := m.baseBranchFilter.Value()
+	if filter == "" {
+		// Make a copy to avoid modifying original
+		m.filteredBranches = make([]git.Branch, len(m.branches))
+		copy(m.filteredBranches, m.branches)
+	} else {
+		source := branchSource(m.branches)
+		matches := fuzzy.FindFrom(filter, source)
+
+		m.filteredBranches = nil
+		for _, match := range matches {
+			m.filteredBranches = append(m.filteredBranches, m.branches[match.Index])
+		}
+	}
+
+	// Ensure cursor is in bounds
+	if m.baseBranchIndex >= len(m.filteredBranches) {
+		m.baseBranchIndex = len(m.filteredBranches) - 1
+	}
+	if m.baseBranchIndex < 0 {
+		m.baseBranchIndex = 0
 	}
 }
 
@@ -1292,9 +1394,12 @@ func (m Model) View() string {
 		DeleteInput:         m.deleteInput.View(),
 		ShowDetail:          m.showDetail,
 		Branches:            m.branches,
+		FilteredBranches:    m.filteredBranches,
 		BaseBranchIndex:     m.baseBranchIndex,
 		BaseViewOffset:      m.baseViewOffset,
 		VisibleBranchCount:  m.visibleBranchCount(),
+		BranchFilterInput:   m.baseBranchFilter.View(),
+		BranchFilterValue:   m.baseBranchFilter.Value(),
 		CreateBranch:        m.createBranch,
 		RenameWorktree:      m.renameWorktree,
 		RenameInput:         m.renameInput.View(),
