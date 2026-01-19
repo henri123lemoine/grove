@@ -1642,7 +1642,7 @@ func runPostCreateOperations(cfg *config.Config, path string) tea.Cmd {
 
 func sanitizePath(branch string) string {
 	result := branch
-	for _, c := range []string{"\\", " ", ":"} {
+	for _, c := range []string{"\\", " ", ":", ".."} {
 		result = strings.ReplaceAll(result, c, "-")
 	}
 	return result
