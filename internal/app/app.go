@@ -275,12 +275,19 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildWorktreeIndex()
 		m.applyFilter()
 		m.ensureCursorVisible()
-		// If from cache, trigger background refresh + upstream fetch
+		// If from cache, trigger background refresh + upstream/base branch fetch
 		if msg.FromCache {
-			return m, tea.Batch(refreshWorktrees, loadUpstreamStatus(m.worktrees))
+			return m, tea.Batch(
+				refreshWorktrees,
+				loadUpstreamStatus(m.worktrees),
+				loadBaseBranchStatus(m.worktrees, m.config.General.DefaultBaseBranch),
+			)
 		}
-		// Fresh data - just fetch upstream
-		return m, loadUpstreamStatus(m.worktrees)
+		// Fresh data - just fetch upstream and base branch status
+		return m, tea.Batch(
+			loadUpstreamStatus(m.worktrees),
+			loadBaseBranchStatus(m.worktrees, m.config.General.DefaultBaseBranch),
+		)
 
 	case WorktreesLoadedMsg:
 		// Background refresh completed (or direct load in tests)
@@ -297,8 +304,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.rebuildWorktreeIndex()
 		m.applyFilter()
 		m.ensureCursorVisible()
-		// Trigger upstream fetch for fresh data
-		return m, loadUpstreamStatus(m.worktrees)
+		// Trigger upstream and base branch fetch for fresh data
+		return m, tea.Batch(
+			loadUpstreamStatus(m.worktrees),
+			loadBaseBranchStatus(m.worktrees, m.config.General.DefaultBaseBranch),
+		)
 
 	case BranchesLoadedMsg:
 		if msg.Err != nil {
@@ -541,6 +551,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.filteredWorktrees[i].Ahead = updated.Ahead
 				m.filteredWorktrees[i].Behind = updated.Behind
 				m.filteredWorktrees[i].HasUpstream = updated.HasUpstream
+			}
+		}
+		return m, nil
+
+	case BaseBranchLoadedMsg:
+		baseByPath := make(map[string]git.Worktree, len(msg.Worktrees))
+		for _, wt := range msg.Worktrees {
+			baseByPath[wt.Path] = wt
+		}
+		for i := range m.worktrees {
+			if updated, ok := baseByPath[m.worktrees[i].Path]; ok {
+				m.worktrees[i].AheadOfBase = updated.AheadOfBase
+				m.worktrees[i].BehindBase = updated.BehindBase
+				m.worktrees[i].HasBaseStats = updated.HasBaseStats
+			}
+		}
+		for i := range m.filteredWorktrees {
+			if updated, ok := baseByPath[m.filteredWorktrees[i].Path]; ok {
+				m.filteredWorktrees[i].AheadOfBase = updated.AheadOfBase
+				m.filteredWorktrees[i].BehindBase = updated.BehindBase
+				m.filteredWorktrees[i].HasBaseStats = updated.HasBaseStats
 			}
 		}
 		return m, nil
@@ -1554,6 +1585,18 @@ func loadUpstreamStatus(worktrees []git.Worktree) tea.Cmd {
 		copy(wtCopy, worktrees)
 		git.EnrichWorktreesUpstream(wtCopy)
 		return UpstreamLoadedMsg{Worktrees: wtCopy}
+	}
+}
+
+func loadBaseBranchStatus(worktrees []git.Worktree, baseBranch string) tea.Cmd {
+	if baseBranch == "" {
+		return nil
+	}
+	return func() tea.Msg {
+		wtCopy := make([]git.Worktree, len(worktrees))
+		copy(wtCopy, worktrees)
+		git.EnrichWorktreesBaseBranch(wtCopy, baseBranch)
+		return BaseBranchLoadedMsg{Worktrees: wtCopy}
 	}
 }
 

@@ -81,6 +81,9 @@ show_commits = true
 # Show upstream tracking status (ahead/behind)
 show_upstream = true
 
+# Show ahead/behind relative to default_base_branch
+show_base_branch = false
+
 # Color theme: auto, dark, light
 theme = "auto"
 

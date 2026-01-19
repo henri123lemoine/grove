@@ -259,7 +259,7 @@ func renderList(p RenderParams) string {
 		b.WriteString(renderWorktreeEntry(wt, isSelected, contentWidth, p.Config, colWidths))
 		// Show detail panel for selected item if enabled
 		if isSelected && p.ShowDetail {
-			b.WriteString(renderDetailPanel(wt, contentWidth))
+			b.WriteString(renderDetailPanel(wt, contentWidth, p.Config))
 		}
 		if i < endIdx-1 {
 			b.WriteString("\n")
@@ -335,6 +335,24 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 		}
 	}
 
+	// Base branch comparison (ahead/behind default_base_branch)
+	if cfg != nil && cfg.UI.ShowBaseBranch && cfg.General.DefaultBaseBranch != "" && wt.HasBaseStats {
+		var baseParts []string
+		if wt.BehindBase > 0 {
+			baseParts = append(baseParts, fmt.Sprintf("↓%d", wt.BehindBase))
+		}
+		if wt.AheadOfBase > 0 {
+			baseParts = append(baseParts, fmt.Sprintf("↑%d", wt.AheadOfBase))
+		}
+		if len(baseParts) > 0 {
+			branchShort := cfg.General.DefaultBaseBranch
+			if len(branchShort) > 6 {
+				branchShort = branchShort[:6]
+			}
+			statusParts = append(statusParts, BaseBranchStyle.Render(branchShort+":"+strings.Join(baseParts, "")))
+		}
+	}
+
 	// Merged status and unique commits are shown in detail panel (Tab) only
 
 	parts = append(parts, strings.Join(statusParts, " "))
@@ -345,7 +363,7 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 }
 
 // renderDetailPanel renders the expanded detail panel for a worktree.
-func renderDetailPanel(wt git.Worktree, width int) string {
+func renderDetailPanel(wt git.Worktree, width int, cfg *config.Config) string {
 	var b strings.Builder
 	indent := "      "
 
@@ -402,6 +420,22 @@ func renderDetailPanel(wt git.Worktree, width int) string {
 		}
 	}
 	b.WriteString(renderRow("Upstream: ", upstreamStr, identity))
+
+	// Base branch comparison
+	if cfg != nil && cfg.UI.ShowBaseBranch && cfg.General.DefaultBaseBranch != "" && wt.HasBaseStats {
+		label := fmt.Sprintf("vs %s: ", cfg.General.DefaultBaseBranch)
+		// Pad label to align with others (10 chars)
+		for len(label) < 10 {
+			label += " "
+		}
+		var baseStr string
+		if wt.AheadOfBase > 0 || wt.BehindBase > 0 {
+			baseStr = fmt.Sprintf("↑%d ahead, ↓%d behind", wt.AheadOfBase, wt.BehindBase)
+		} else {
+			baseStr = "up to date"
+		}
+		b.WriteString(renderRow(label, baseStr, identity))
+	}
 
 	// Merged status
 	mergedStr := "no"

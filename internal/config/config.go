@@ -134,6 +134,9 @@ type UIConfig struct {
 	// Show upstream tracking status
 	ShowUpstream bool `toml:"show_upstream"`
 
+	// Show ahead/behind relative to default_base_branch
+	ShowBaseBranch bool `toml:"show_base_branch"`
+
 	// Color theme: auto, dark, light
 	Theme string `toml:"theme"`
 
@@ -193,6 +196,7 @@ func DefaultConfig() *Config {
 			ShowBranchTypes: true,
 			ShowCommits:     true,
 			ShowUpstream:    true,
+			ShowBaseBranch:  false,
 			Theme:           "auto",
 			DefaultSort:     "default",
 		},
@@ -392,6 +396,8 @@ func generateDefaultConfigContent() string {
 	fmt.Fprintf(&b, "show_commits = %v\n", cfg.UI.ShowCommits)
 	b.WriteString("# Show upstream tracking status\n")
 	fmt.Fprintf(&b, "show_upstream = %v\n", cfg.UI.ShowUpstream)
+	b.WriteString("# Show ahead/behind relative to default_base_branch (e.g., main)\n")
+	fmt.Fprintf(&b, "show_base_branch = %v\n", cfg.UI.ShowBaseBranch)
 	b.WriteString("# Color theme: \"auto\", \"dark\", or \"light\"\n")
 	fmt.Fprintf(&b, "theme = %q\n", cfg.UI.Theme)
 	b.WriteString("# Default sort order: \"default\", \"name\", \"name-desc\", \"dirty\", \"clean\"\n")

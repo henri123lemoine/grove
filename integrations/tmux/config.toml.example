@@ -34,6 +34,8 @@ require_typing_for_unique = true
 show_branch_types = true
 show_commits = true
 show_upstream = true
+# Show ahead/behind relative to default_base_branch
+# show_base_branch = true
 theme = "auto"
 
 [keys]

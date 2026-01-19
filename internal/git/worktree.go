@@ -32,6 +32,11 @@ type Worktree struct {
 	Ahead       int
 	Behind      int
 
+	// Base branch comparison (e.g., ahead/behind main)
+	AheadOfBase  int
+	BehindBase   int
+	HasBaseStats bool // True if base branch comparison was performed
+
 	// Safety info
 	IsMerged      bool
 	UniqueCommits int // Commits that exist only on this branch
@@ -132,6 +137,34 @@ func EnrichWorktreesUpstream(worktrees []Worktree) {
 				defer func() { <-sem }() // release
 				defer wg.Done()
 				wt.Ahead, wt.Behind, wt.HasUpstream, _ = GetUpstreamStatus(wt.Path, wt.Branch)
+			}(wt)
+		}
+	}
+	wg.Wait()
+}
+
+// EnrichWorktreesBaseBranch fetches ahead/behind status relative to a base branch.
+// Run this in background after initial load for progressive enhancement.
+func EnrichWorktreesBaseBranch(worktrees []Worktree, baseBranch string) {
+	if baseBranch == "" {
+		return
+	}
+	sem := make(chan struct{}, maxWorkers)
+	var wg sync.WaitGroup
+	for i := range worktrees {
+		wt := &worktrees[i]
+		if wt.Branch != "" && !wt.IsDetached && wt.Branch != baseBranch {
+			wg.Add(1)
+			go func(wt *Worktree) {
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				defer wg.Done()
+				ahead, behind, err := GetBaseBranchStatus(wt.Path, wt.Branch, baseBranch)
+				if err == nil {
+					wt.AheadOfBase = ahead
+					wt.BehindBase = behind
+					wt.HasBaseStats = true
+				}
 			}(wt)
 		}
 	}

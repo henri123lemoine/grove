@@ -107,6 +107,11 @@ type UpstreamLoadedMsg struct {
 	Worktrees []git.Worktree
 }
 
+// BaseBranchLoadedMsg is sent when base branch comparison status is loaded.
+type BaseBranchLoadedMsg struct {
+	Worktrees []git.Worktree
+}
+
 // BranchDeletedMsg is sent when a branch is deleted.
 type BranchDeletedMsg struct {
 	Branch string

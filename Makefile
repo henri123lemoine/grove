@@ -1,8 +1,9 @@
 .PHONY: build run clean install test test-quick test-bash lint fmt fmt-check check setup-hooks release
 
 # Version info for local builds
+VERSION := $(shell git describe --tags --exact-match 2>/dev/null | sed 's/^v//' || echo "dev")
 COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
-LDFLAGS := -X main.commit=$(COMMIT)
+LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT)
 
 # Build the binary
 build:

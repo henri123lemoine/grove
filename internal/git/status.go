@@ -43,6 +43,29 @@ func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, hasUpstr
 	return ahead, behind, true, nil
 }
 
+// GetBaseBranchStatus returns how many commits a branch is ahead/behind a base branch.
+// Unlike GetUpstreamStatus which compares to upstream tracking, this compares to a specific branch.
+func GetBaseBranchStatus(worktreePath, branch, baseBranch string) (ahead, behind int, err error) {
+	if branch == baseBranch {
+		return 0, 0, nil
+	}
+
+	output, err := runGitInDir(worktreePath, "rev-list", "--left-right", "--count", baseBranch+"..."+branch)
+	if err != nil {
+		return 0, 0, err
+	}
+
+	parts := strings.Fields(strings.TrimSpace(output))
+	if len(parts) != 2 {
+		return 0, 0, nil
+	}
+
+	behind, _ = strconv.Atoi(parts[0])
+	ahead, _ = strconv.Atoi(parts[1])
+
+	return ahead, behind, nil
+}
+
 // GetLastCommit returns information about the last commit in a worktree.
 func GetLastCommit(worktreePath string) (hash, message, relTime string, err error) {
 	// Get all info in one call using null byte delimiter (%x00 is git's escape sequence)

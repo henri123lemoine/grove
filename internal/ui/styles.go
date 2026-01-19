@@ -101,7 +101,8 @@ var (
 	WorktreeTagStyle lipgloss.Style
 	LocalTagStyle    lipgloss.Style
 	RemoteTagStyle   lipgloss.Style
-	GitTagStyle      lipgloss.Style // For git tags (not branches)
+	GitTagStyle      lipgloss.Style
+	BaseBranchStyle  lipgloss.Style
 )
 
 // Symbols
@@ -229,6 +230,9 @@ func InitTheme(theme string) {
 		Foreground(ColorWarning)
 
 	GitTagStyle = lipgloss.NewStyle().
+		Foreground(ColorPurple)
+
+	BaseBranchStyle = lipgloss.NewStyle().
 		Foreground(ColorPurple)
 }
 
