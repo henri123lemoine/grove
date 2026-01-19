@@ -49,26 +49,11 @@ type FetchCompletedMsg struct {
 	Err error
 }
 
-// ErrorMsg is a general error message.
-type ErrorMsg struct {
-	Err error
-}
-
 // BranchRenamedMsg is sent when branch rename completes.
 type BranchRenamedMsg struct {
 	OldName string
 	NewName string
 	Err     error
-}
-
-// StashCreatedMsg is sent when a stash is created.
-type StashCreatedMsg struct {
-	Err error
-}
-
-// StashPoppedMsg is sent when a stash is popped.
-type StashPoppedMsg struct {
-	Err error
 }
 
 // FileCopyCompletedMsg is sent when file copy completes.

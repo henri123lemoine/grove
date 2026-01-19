@@ -32,27 +32,6 @@ func Open(cfg *config.Config, command string, wt *git.Worktree) error {
 	return cmd.Run()
 }
 
-// OpenDetached executes the open command in a detached process.
-// This is useful for commands that should outlive grove.
-func OpenDetached(cfg *config.Config, command string, wt *git.Worktree) error {
-	repo, err := git.GetRepo()
-	if err != nil {
-		return err
-	}
-
-	// Expand template variables
-	expanded := expandTemplate(command, wt, repo, cfg)
-
-	// Execute via shell
-	cmd := exec.Command("sh", "-c", expanded)
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	cmd.Stdin = nil
-
-	// Start the process but don't wait for it
-	return cmd.Start()
-}
-
 // OpenWithConfig executes the open command with full config support.
 // Returns true if a new window was created (vs switching to existing).
 func OpenWithConfig(cfg *config.Config, wt *git.Worktree, layout *config.LayoutConfig) (bool, error) {
