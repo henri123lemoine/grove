@@ -161,11 +161,12 @@ func GetUniqueCommits(branch, defaultBranch string) ([]CommitInfo, error) {
 	remoteBranch := "origin/" + branch
 	hasRemote := remoteBranchExists(remoteBranch)
 
-	// git log {branch} --not {defaultBranch} [--not origin/{branch}]
+	// git log {branch} --not {defaultBranch} [origin/{branch}]
 	// Shows commits on this branch that aren't on the default branch (or remote)
+	// Note: --not is a toggle, so we only use it once before all excluded refs
 	args := []string{"log", branch, "--not", defaultBranch}
 	if hasRemote {
-		args = append(args, "--not", remoteBranch)
+		args = append(args, remoteBranch)
 	}
 	args = append(args, "--format=%h %s")
 
