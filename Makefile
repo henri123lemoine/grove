@@ -1,12 +1,16 @@
 .PHONY: build run clean install test test-quick test-bash lint fmt fmt-check check setup-hooks release
 
+# Version info for local builds
+COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
+LDFLAGS := -X main.commit=$(COMMIT)
+
 # Build the binary
 build:
-	go build -o grove ./cmd/grove
+	go build -ldflags "$(LDFLAGS)" -o grove ./cmd/grove
 
 # Run directly
 run:
-	go run ./cmd/grove
+	go run -ldflags "$(LDFLAGS)" ./cmd/grove
 
 # Clean build artifacts
 clean:
@@ -14,7 +18,7 @@ clean:
 
 # Install to $GOPATH/bin
 install:
-	go install ./cmd/grove
+	go install -ldflags "$(LDFLAGS)" ./cmd/grove
 
 # Get dependencies
 deps:

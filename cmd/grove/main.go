@@ -17,6 +17,7 @@ import (
 
 var (
 	version = "dev"
+	commit  = ""
 )
 
 func main() {
@@ -47,7 +48,7 @@ func main() {
 	}
 
 	if *showVersion {
-		fmt.Printf("grove %s\n", version)
+		fmt.Printf("grove %s\n", versionString())
 		os.Exit(0)
 	}
 
@@ -85,7 +86,7 @@ func main() {
 	}
 
 	// Create and run the application
-	model := app.New(cfg, repo, configWarnings)
+	model := app.New(cfg, repo, configWarnings, versionString())
 	p := tea.NewProgram(model,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
@@ -123,4 +124,15 @@ Flags:
   -h, --help            Show this help
 
 Press ? inside grove for keybindings.`)
+}
+
+func versionString() string {
+	if version == "dev" && commit != "" {
+		short := commit
+		if len(short) > 7 {
+			short = short[:7]
+		}
+		return "dev (" + short + ")"
+	}
+	return version
 }

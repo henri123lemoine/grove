@@ -41,6 +41,7 @@ type HelpSection struct {
 
 // RenderParams contains all parameters needed for rendering.
 type RenderParams struct {
+	Version             string
 	State               int
 	Worktrees           []git.Worktree
 	Cursor              int
@@ -812,7 +813,11 @@ func renderHelp(p RenderParams) string {
 	var b strings.Builder
 	contentWidth := p.Width - 4
 
-	b.WriteString(HeaderStyle.Render("HELP") + "\n")
+	header := HeaderStyle.Render("HELP")
+	if p.Version != "" {
+		header += "  " + PathStyle.Render("grove "+p.Version)
+	}
+	b.WriteString(header + "\n")
 	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
 
 	// Render each help section from the passed bindings

@@ -102,8 +102,9 @@ func isDenyKey(msg tea.KeyMsg) bool {
 // Model is the main application model.
 type Model struct {
 	// Configuration
-	config *config.Config
-	repo   *git.Repo
+	config  *config.Config
+	repo    *git.Repo
+	version string
 
 	// Data
 	worktrees           []git.Worktree
@@ -170,7 +171,7 @@ type Model struct {
 }
 
 // New creates a new Model.
-func New(cfg *config.Config, repo *git.Repo, configWarnings []string) Model {
+func New(cfg *config.Config, repo *git.Repo, configWarnings []string, version string) Model {
 	// Create text inputs
 	createInput := textinput.New()
 	createInput.Placeholder = "branch-name"
@@ -200,6 +201,7 @@ func New(cfg *config.Config, repo *git.Repo, configWarnings []string) Model {
 	return Model{
 		config:           cfg,
 		repo:             repo,
+		version:          version,
 		keys:             KeyMapFromConfig(&cfg.Keys),
 		createInput:      createInput,
 		deleteInput:      deleteInput,
@@ -1375,6 +1377,7 @@ func (m *Model) sortWorktrees() {
 // View renders the UI.
 func (m Model) View() string {
 	return ui.Render(ui.RenderParams{
+		Version:             m.version,
 		State:               int(m.state),
 		Worktrees:           m.filteredWorktrees,
 		Cursor:              m.cursor,
