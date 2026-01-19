@@ -121,6 +121,12 @@ func CalculateColumnWidths(worktrees []git.Worktree) ColumnWidths {
 
 // truncateMsg truncates a message to maxLen, adding "..." if needed.
 func truncateMsg(msg string, maxLen int) string {
+	if maxLen <= 0 {
+		return ""
+	}
+	if maxLen <= 3 {
+		return msg[:min(len(msg), maxLen)]
+	}
 	if len(msg) > maxLen {
 		return msg[:maxLen-3] + "..."
 	}
