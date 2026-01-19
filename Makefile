@@ -5,10 +5,13 @@ VERSION := $(shell git describe --tags --exact-match 2>/dev/null | sed 's/^v//' 
 VERSION := $(or $(VERSION),dev)
 COMMIT := $(shell git rev-parse HEAD 2>/dev/null || echo "unknown")
 LDFLAGS := -X main.version=$(VERSION) -X main.commit=$(COMMIT)
+LOCAL_BIN := $(HOME)/.local/bin
 
-# Build the binary
+# Build the binary and link to ~/.local/bin for local development
 build:
 	go build -ldflags "$(LDFLAGS)" -o grove ./cmd/grove
+	@mkdir -p $(LOCAL_BIN)
+	@ln -sf $(CURDIR)/grove $(LOCAL_BIN)/grove
 
 # Run directly
 run:
