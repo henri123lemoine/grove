@@ -1641,32 +1641,11 @@ func runPostCreateOperations(cfg *config.Config, path string) tea.Cmd {
 // Helper functions
 
 func sanitizePath(branch string) string {
-	// Keep the branch name structure intact (including slashes)
-	// Only sanitize truly problematic characters
 	result := branch
 	for _, c := range []string{"\\", " ", ":"} {
-		result = replaceAll(result, c, "-")
+		result = strings.ReplaceAll(result, c, "-")
 	}
 	return result
-}
-
-func replaceAll(s, old, new string) string {
-	for {
-		next := replace(s, old, new)
-		if next == s {
-			return s
-		}
-		s = next
-	}
-}
-
-func replace(s, old, new string) string {
-	for i := 0; i <= len(s)-len(old); i++ {
-		if s[i:i+len(old)] == old {
-			return s[:i] + new + s[i+len(old):]
-		}
-	}
-	return s
 }
 
 // visibleItemCount returns how many worktree items can fit in the viewport.
