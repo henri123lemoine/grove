@@ -21,6 +21,10 @@ var (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	// Parse flags
 	printSelected := flag.Bool("print-selected", false, "Print the selected worktree path on exit")
 	printPath := flag.Bool("p", false, "Alias for --print-selected")
@@ -44,19 +48,19 @@ func main() {
 
 	if *showHelp {
 		printUsage()
-		os.Exit(0)
+		return 0
 	}
 
 	if *showVersion {
 		fmt.Printf("grove %s\n", versionString())
-		os.Exit(0)
+		return 0
 	}
 
 	// Load configuration
 	cfg, err := config.Load()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Get config validation warnings (will be displayed in TUI)
@@ -77,7 +81,7 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		fmt.Fprintf(os.Stderr, "grove must be run from within a git repository.\n")
-		os.Exit(1)
+		return 1
 	}
 
 	// Update default branch detection if a specific remote is configured
@@ -95,7 +99,7 @@ func main() {
 	finalModel, err := p.Run()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	// Check if we need to do anything after quitting
@@ -104,11 +108,8 @@ func main() {
 		if (*printSelected || *printPath) && m.SelectedWorktree() != nil {
 			fmt.Println(m.SelectedWorktree().Path)
 		}
-
-		if m.ShouldQuit() {
-			os.Exit(0)
-		}
 	}
+	return 0
 }
 
 func printUsage() {

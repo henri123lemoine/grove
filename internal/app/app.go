@@ -319,9 +319,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case SafetyCheckedMsg:
+		if m.deleteWorktree == nil {
+			return m, nil
+		}
 		if msg.Err != nil {
 			m.err = msg.Err
 			m.state = StateList
+			m.deleteWorktree = nil
 			return m, nil
 		}
 		m.safetyInfo = msg.Info
@@ -359,11 +363,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// Proceed with deletion immediately
 			force := msg.Info.HasUncommittedChanges
 			path := m.deleteWorktree.Path
+			branch := deletableBranch(m.deleteWorktree)
+			forceDeleteBranch := msg.Info.Level == git.SafetyLevelDanger
 			m.state = StateList
 			m.deleteWorktree = nil
-			m.forceDeleteBranch = msg.Info.Level == git.SafetyLevelDanger
+			m.forceDeleteBranch = forceDeleteBranch
 			m.safetyInfo = nil
-			return m, deleteWorktree(path, force)
+			return m, deleteWorktree(path, force, branch, forceDeleteBranch)
 		}
 
 		// Require typing "delete" for danger level if configured
@@ -419,10 +425,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, refreshWorktrees
 		}
 
-		// Store the branch name for potential deletion
-		if m.deleteWorktree != nil && !m.deleteWorktree.IsMain && !m.deleteWorktree.IsDetached {
-			m.deletedBranch = m.deleteWorktree.Branch
-		}
+		// Store branch deletion metadata from the async message
+		m.deletedBranch = msg.DeletedBranch
+		m.forceDeleteBranch = msg.ForceDeleteBranch
 
 		// Check for multiplexer windows/tabs to close
 		if exec.InMultiplexer() && m.config.Delete.CloseWindowAction != "never" {
@@ -695,19 +700,19 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.ensureCursorVisible()
 	case key.Matches(msg, m.keys.Open):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
-			wt := &m.filteredWorktrees[m.cursor]
-			m.selectedWorktree = wt
+			wt := m.filteredWorktrees[m.cursor]
+			m.selectedWorktree = &wt
 
 			// If layouts are defined and no window already exists, show layout selector
-			if len(m.config.Layouts) > 0 && !exec.WindowExistsFor(m.config, wt) {
-				m.layoutWorktree = wt
+			if len(m.config.Layouts) > 0 && !exec.WindowExistsFor(m.config, &wt) {
+				m.layoutWorktree = &wt
 				m.layoutCursor = 0
 				m.state = StateSelectLayout
 				return m, nil
 			}
 
 			// No layouts or window already exists, open directly
-			return m, openWorktree(m.config, wt, m.currentWorktree(), nil)
+			return m, openWorktree(m.config, &wt, m.currentWorktree(), nil)
 		}
 	case key.Matches(msg, m.keys.New):
 		m.state = StateCreate
@@ -715,18 +720,18 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, textinput.Blink
 	case key.Matches(msg, m.keys.Delete):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
-			wt := &m.filteredWorktrees[m.cursor]
+			wt := m.filteredWorktrees[m.cursor]
 			if wt.IsMain {
 				m.err = fmt.Errorf("cannot delete main worktree")
 				return m, nil
 			}
-			m.deleteWorktree = wt
+			m.deleteWorktree = &wt
 			m.state = StateDelete
 			return m, checkSafety(wt.Path, wt.Branch, m.repo.DefaultBranch)
 		}
 	case key.Matches(msg, m.keys.Rename):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
-			wt := &m.filteredWorktrees[m.cursor]
+			wt := m.filteredWorktrees[m.cursor]
 			if wt.IsMain {
 				m.err = fmt.Errorf("cannot rename main worktree branch")
 				return m, nil
@@ -735,7 +740,7 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.err = fmt.Errorf("cannot rename detached HEAD (checkout a branch first)")
 				return m, nil
 			}
-			m.renameWorktree = wt
+			m.renameWorktree = &wt
 			m.renameInput.SetValue(wt.Branch)
 			m.renameInput.Focus()
 			m.state = StateRename
@@ -766,8 +771,8 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 	case key.Matches(msg, m.keys.Stash):
 		if len(m.filteredWorktrees) > 0 && m.cursor < len(m.filteredWorktrees) {
-			wt := &m.filteredWorktrees[m.cursor]
-			m.stashWorktree = wt
+			wt := m.filteredWorktrees[m.cursor]
+			m.stashWorktree = &wt
 			m.stashCursor = 0
 			m.state = StateStash
 			return m, loadStashList(wt.Path)
@@ -781,8 +786,8 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 // handleHelpKeys handles key presses in the help view.
-func (m Model) handleHelpKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// Any key closes help
+// Any key closes the help view; the specific key is ignored.
+func (m Model) handleHelpKeys(_ tea.KeyMsg) (tea.Model, tea.Cmd) {
 	m.state = StateList
 	return m, nil
 }
@@ -947,8 +952,15 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		// Proceed with deletion
 		force := m.safetyInfo.HasUncommittedChanges
-		m.forceDeleteBranch = m.safetyInfo.Level == git.SafetyLevelDanger
-		return m, deleteWorktree(m.deleteWorktree.Path, force)
+		path := m.deleteWorktree.Path
+		branch := deletableBranch(m.deleteWorktree)
+		forceDeleteBranch := m.safetyInfo.Level == git.SafetyLevelDanger
+		m.forceDeleteBranch = forceDeleteBranch
+		m.state = StateList
+		m.deleteWorktree = nil
+		m.deleteInput.Reset()
+		m.safetyInfo = nil
+		return m, deleteWorktree(path, force, branch, forceDeleteBranch)
 	}
 
 	// If requiring typing, handle text input
@@ -961,8 +973,15 @@ func (m Model) handleDeleteKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	// For safe/warning (and danger without RequireTypingForUnique), y confirms, n cancels
 	if isConfirmKey(msg) {
 		force := m.safetyInfo.HasUncommittedChanges
-		m.forceDeleteBranch = m.safetyInfo.Level == git.SafetyLevelDanger
-		return m, deleteWorktree(m.deleteWorktree.Path, force)
+		path := m.deleteWorktree.Path
+		branch := deletableBranch(m.deleteWorktree)
+		forceDeleteBranch := m.safetyInfo.Level == git.SafetyLevelDanger
+		m.forceDeleteBranch = forceDeleteBranch
+		m.state = StateList
+		m.deleteWorktree = nil
+		m.deleteInput.Reset()
+		m.safetyInfo = nil
+		return m, deleteWorktree(path, force, branch, forceDeleteBranch)
 	}
 	if isDenyKey(msg) {
 		m.state = StateList
@@ -1445,7 +1464,7 @@ func (m Model) View() string {
 		SpinnerFrame:        m.spinner.View(),
 		HelpSections:        m.keys.HelpSections(),
 		PendingWindowsCount: len(m.pendingWindowsClose),
-		PendingWindowsName:  exec.GetMultiplexer().WindowName(),
+		PendingWindowsName:  exec.Backend().WindowName(),
 		ConfigWarnings:      m.configWarnings,
 		LastPruneCount:      m.lastPruneCount,
 		DeletedBranch:       m.deletedBranch,
@@ -1513,10 +1532,15 @@ func createWorktree(cfg *config.Config, branch string, isNew bool, baseBranch st
 	}
 }
 
-func deleteWorktree(path string, force bool) tea.Cmd {
+func deleteWorktree(path string, force bool, deletedBranch string, forceDeleteBranch bool) tea.Cmd {
 	return func() tea.Msg {
 		err := git.Remove(path, force)
-		return WorktreeDeletedMsg{Path: path, Err: err}
+		return WorktreeDeletedMsg{
+			Path:              path,
+			DeletedBranch:     deletedBranch,
+			ForceDeleteBranch: forceDeleteBranch,
+			Err:               err,
+		}
 	}
 }
 
@@ -1645,7 +1669,19 @@ func sanitizePath(branch string) string {
 	for _, c := range []string{"\\", " ", ":", ".."} {
 		result = strings.ReplaceAll(result, c, "-")
 	}
+	result = filepath.Clean(result)
+	result = strings.TrimLeft(result, "/")
+	if result == "" || result == "." {
+		return "-"
+	}
 	return result
+}
+
+func deletableBranch(wt *git.Worktree) string {
+	if wt == nil || wt.IsMain || wt.IsDetached {
+		return ""
+	}
+	return wt.Branch
 }
 
 // visibleItemCount returns how many worktree items can fit in the viewport.

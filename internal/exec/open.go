@@ -169,6 +169,7 @@ func EchoPath(wt *git.Worktree) string {
 }
 
 // Multiplexer represents the type of terminal multiplexer.
+//
 // Deprecated: Use Backend() interface instead for new code.
 type Multiplexer int
 
@@ -179,6 +180,7 @@ const (
 )
 
 // GetMultiplexer detects the current terminal multiplexer.
+//
 // Deprecated: Use Backend() instead.
 func GetMultiplexer() Multiplexer {
 	b := Backend()

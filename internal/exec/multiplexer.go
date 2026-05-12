@@ -6,6 +6,7 @@ import (
 	osExec "os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/henri123lemoine/grove/internal/config"
@@ -361,9 +362,14 @@ func (n *noneBackend) ApplyNamedLayout(*config.LayoutConfig, *git.Worktree, *git
 
 // Backend returns the MultiplexerBackend for the current environment.
 // The backend is cached for the lifetime of the process.
-var multiplexerBackend MultiplexerBackend
+var (
+	multiplexerBackend   MultiplexerBackend
+	multiplexerBackendMu sync.Mutex
+)
 
 func Backend() MultiplexerBackend {
+	multiplexerBackendMu.Lock()
+	defer multiplexerBackendMu.Unlock()
 	if multiplexerBackend != nil {
 		return multiplexerBackend
 	}
@@ -392,5 +398,7 @@ func Backend() MultiplexerBackend {
 
 // ResetBackend resets the cached backend (useful for testing).
 func ResetBackend() {
+	multiplexerBackendMu.Lock()
+	defer multiplexerBackendMu.Unlock()
 	multiplexerBackend = nil
 }

@@ -144,7 +144,9 @@ func ListAllBranchesWithWorktreeStatus() ([]Branch, error) {
 	}
 
 	// Combine all branches and tags
-	allBranches := append(local, remote...)
+	allBranches := make([]Branch, 0, len(local)+len(remote)+len(tags))
+	allBranches = append(allBranches, local...)
+	allBranches = append(allBranches, remote...)
 	allBranches = append(allBranches, tags...)
 
 	// Sort: current first, default, worktrees, local, remote, then tags

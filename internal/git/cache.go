@@ -1,6 +1,8 @@
 package git
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -22,9 +24,8 @@ func getCachePath(repoRoot string) string {
 	if err != nil {
 		cacheDir = os.TempDir()
 	}
-	// Use hash of repo path to avoid conflicts
-	safeKey := filepath.Base(repoRoot)
-	return filepath.Join(cacheDir, "grove", safeKey+".json")
+	sum := sha256.Sum256([]byte(repoRoot))
+	return filepath.Join(cacheDir, "grove", hex.EncodeToString(sum[:])+".json")
 }
 
 // LoadCache attempts to load cached worktree data.
@@ -89,8 +90,11 @@ func SaveCache(repoRoot string, worktrees []Worktree) error {
 	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
 		return err
 	}
-
-	return os.Rename(tmpPath, path)
+	if err := os.Rename(tmpPath, path); err != nil {
+		_ = os.Remove(tmpPath)
+		return err
+	}
+	return nil
 }
 
 // ListCached returns worktrees from cache if available, otherwise fetches fresh.

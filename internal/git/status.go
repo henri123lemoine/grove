@@ -25,11 +25,9 @@ func GetDirtyStatus(worktreePath string) (isDirty bool, count int, err error) {
 // GetUpstreamStatus returns how many commits a branch is ahead/behind its upstream.
 // Returns hasUpstream=false if no upstream tracking is configured.
 func GetUpstreamStatus(worktreePath, branch string) (ahead, behind int, hasUpstream bool, err error) {
-	// Try to get count directly - if no upstream, this will fail
-	output, err := runGitInDir(worktreePath, "rev-list", "--left-right", "--count", branch+"@{upstream}..."+branch)
-	if err != nil {
-		// No upstream configured (or other error)
-		return 0, 0, false, nil
+	output, gitErr := runGitInDir(worktreePath, "rev-list", "--left-right", "--count", branch+"@{upstream}..."+branch)
+	if gitErr != nil {
+		return 0, 0, false, nil //nolint:nilerr // intentional: any git error here means "no upstream"
 	}
 
 	parts := strings.Fields(strings.TrimSpace(output))

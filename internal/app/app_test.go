@@ -303,6 +303,39 @@ func TestDeleteFlowCannotDeleteMain(t *testing.T) {
 	}
 }
 
+func TestWorktreeDeletedMsgUsesMessageBranchForBranchPrompt(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Delete.DeleteBranchAction = "ask"
+	cfg.Delete.CloseWindowAction = "never"
+	repo := &git.Repo{
+		Root:             "/test/repo",
+		GitDir:           "/test/repo/.git",
+		MainWorktreeRoot: "/test/repo",
+		DefaultBranch:    "main",
+	}
+
+	model := New(cfg, repo, nil, "test")
+	model.loading = false
+	model.deleteWorktree = nil
+
+	newModel, _ := model.Update(WorktreeDeletedMsg{
+		Path:              "/test/repo/.worktrees/feature",
+		DeletedBranch:     "feature",
+		ForceDeleteBranch: true,
+	})
+	m := newModel.(Model)
+
+	if m.state != StateDeleteConfirmBranch {
+		t.Errorf("Expected StateDeleteConfirmBranch, got %d", m.state)
+	}
+	if m.deletedBranch != "feature" {
+		t.Errorf("Expected deletedBranch feature, got %q", m.deletedBranch)
+	}
+	if !m.forceDeleteBranch {
+		t.Error("Expected forceDeleteBranch to be preserved")
+	}
+}
+
 func TestSanitizePath(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -313,6 +346,11 @@ func TestSanitizePath(t *testing.T) {
 		{"my branch", "my-branch"},
 		{"test:colon", "test-colon"},
 		{"normal-branch", "normal-branch"},
+		{"..", "-"},
+		{"../outside", "-/outside"},
+		{"/abs/path", "abs/path"},
+		{"", "-"},
+		{"./.", "-"},
 	}
 
 	for _, tt := range tests {

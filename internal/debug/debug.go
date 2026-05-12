@@ -16,9 +16,6 @@ var (
 
 // Enable turns on debug logging to the specified file.
 func Enable(path string) error {
-	mu.Lock()
-	defer mu.Unlock()
-
 	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
 		return err
 	}
@@ -28,8 +25,10 @@ func Enable(path string) error {
 		return err
 	}
 
+	mu.Lock()
 	logFile = f
 	enabled = true
+	mu.Unlock()
 
 	Log("Debug logging enabled")
 	return nil

@@ -34,8 +34,10 @@ type WorktreeCreatedMsg struct {
 
 // WorktreeDeletedMsg is sent when a worktree is deleted.
 type WorktreeDeletedMsg struct {
-	Path string
-	Err  error
+	Path              string
+	DeletedBranch     string
+	ForceDeleteBranch bool
+	Err               error
 }
 
 // WorktreeOpenedMsg is sent when a worktree is opened.

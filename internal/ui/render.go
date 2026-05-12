@@ -4,10 +4,28 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/henri123lemoine/grove/internal/config"
 	"github.com/henri123lemoine/grove/internal/git"
 )
+
+// truncateRunes truncates s to at most n runes, appending "..." when truncated.
+func truncateRunes(s string, n int) string {
+	if n <= 0 {
+		return ""
+	}
+	if utf8.RuneCountInString(s) <= n {
+		return s
+	}
+	if n <= 3 {
+		// Not enough room for an ellipsis; return the first n runes.
+		runes := []rune(s)
+		return string(runes[:n])
+	}
+	runes := []rune(s)
+	return string(runes[:n-3]) + "..."
+}
 
 // State constants (matching app.State)
 const (
@@ -107,7 +125,7 @@ type ColumnWidths struct {
 func CalculateColumnWidths(worktrees []git.Worktree) ColumnWidths {
 	var widths ColumnWidths
 	for _, wt := range worktrees {
-		branchLen := len(wt.Branch)
+		branchLen := utf8.RuneCountInString(wt.Branch)
 		if branchLen > widths.Branch {
 			widths.Branch = branchLen
 		}
@@ -119,18 +137,9 @@ func CalculateColumnWidths(worktrees []git.Worktree) ColumnWidths {
 	return widths
 }
 
-// truncateMsg truncates a message to maxLen, adding "..." if needed.
+// truncateMsg truncates a message to maxLen runes, adding "..." if needed.
 func truncateMsg(msg string, maxLen int) string {
-	if maxLen <= 0 {
-		return ""
-	}
-	if maxLen <= 3 {
-		return msg[:min(len(msg), maxLen)]
-	}
-	if len(msg) > maxLen {
-		return msg[:maxLen-3] + "..."
-	}
-	return msg
+	return truncateRunes(msg, maxLen)
 }
 
 // Render renders the full UI.
@@ -290,7 +299,7 @@ func renderList(p RenderParams) string {
 }
 
 // renderWorktreeEntry renders a single worktree as a single line.
-func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.Config, colWidths ColumnWidths) string {
+func renderWorktreeEntry(wt git.Worktree, selected bool, _ int, cfg *config.Config, colWidths ColumnWidths) string {
 	var parts []string
 
 	// Cursor indicator
@@ -308,8 +317,8 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 	}
 	// Pad branch to align status columns
 	paddedBranch := branch
-	if len(branch) < colWidths.Branch {
-		paddedBranch = branch + strings.Repeat(" ", colWidths.Branch-len(branch))
+	if runes := utf8.RuneCountInString(branch); runes < colWidths.Branch {
+		paddedBranch = branch + strings.Repeat(" ", colWidths.Branch-runes)
 	}
 	if selected {
 		parts = append(parts, cursor+SelectedStyle.Render(paddedBranch))
@@ -352,8 +361,9 @@ func renderWorktreeEntry(wt git.Worktree, selected bool, width int, cfg *config.
 		}
 		if len(baseParts) > 0 {
 			branchShort := cfg.General.DefaultBaseBranch
-			if len(branchShort) > 6 {
-				branchShort = branchShort[:6]
+			if utf8.RuneCountInString(branchShort) > 6 {
+				runes := []rune(branchShort)
+				branchShort = string(runes[:6])
 			}
 			statusParts = append(statusParts, BaseBranchStyle.Render(branchShort+":"+strings.Join(baseParts, "")))
 		}
@@ -386,11 +396,10 @@ func renderDetailPanel(wt git.Worktree, width int, cfg *config.Config) string {
 
 	// Helper to render a row with proper padding and truncation
 	renderRow := func(label, value string, style func(string) string) string {
-		maxValueLen := innerWidth - len(label) - 2 // -2 for spaces
-		if len(value) > maxValueLen {
-			value = value[:maxValueLen-3] + "..."
-		}
-		padding := innerWidth - len(label) - len(value)
+		labelLen := utf8.RuneCountInString(label)
+		maxValueLen := innerWidth - labelLen - 2 // -2 for spaces
+		value = truncateRunes(value, maxValueLen)
+		padding := innerWidth - labelLen - utf8.RuneCountInString(value)
 		if padding < 0 {
 			padding = 0
 		}
@@ -868,7 +877,7 @@ func renderHelp(p RenderParams) string {
 			// Pad keys to 10 chars for alignment
 			keys := binding.Keys
 			if len(keys) < 10 {
-				keys = keys + strings.Repeat(" ", 10-len(keys))
+				keys += strings.Repeat(" ", 10-len(keys))
 			}
 			b.WriteString(PathStyle.Render("  "+keys) + " " + binding.Desc + "\n")
 		}
@@ -1015,7 +1024,7 @@ func renderPruneConfirm(p RenderParams) string {
 }
 
 // wrapInBox wraps content in a box.
-func wrapInBox(content string, width, height int) string {
+func wrapInBox(content string, width, _ int) string {
 	boxWidth := width - 2
 	// Graceful degradation: use actual width, just ensure minimum for box borders
 	if boxWidth < MinWidth-2 {

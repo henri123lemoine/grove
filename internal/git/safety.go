@@ -157,8 +157,7 @@ func CheckSafety(worktreePath, branch, defaultBranch string) (*SafetyInfo, error
 // These are commits not on the default branch AND not pushed to the remote.
 // If pushed to the remote, they're recoverable even if we delete the local branch.
 func GetUniqueCommits(branch, defaultBranch string) ([]CommitInfo, error) {
-	// First, check if there's a remote tracking branch
-	remoteBranch := "origin/" + branch
+	remoteBranch := GetPrimaryRemote("") + "/" + branch
 	hasRemote := remoteBranchExists(remoteBranch)
 
 	// git log {branch} --not {defaultBranch} [origin/{branch}]
