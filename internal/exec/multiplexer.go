@@ -149,8 +149,10 @@ func (t *tmuxBackend) ApplyNamedLayout(layout *config.LayoutConfig, wt *git.Work
 	// Track pane IDs as we create them
 	paneIDs := make([]string, len(layout.Panes))
 
-	// Get the pane ID of the newly created window
-	cmd := osExec.Command("tmux", "list-panes", "-t", windowName, "-F", "#{pane_id}")
+	// Get the pane ID of the newly created window.
+	// "=" forces exact name match — without it, tmux treats a numeric name
+	// (e.g. branch "pr/123" → window "123") as a window index and misses it.
+	cmd := osExec.Command("tmux", "list-panes", "-t", "="+windowName, "-F", "#{pane_id}")
 	output, err := cmd.Output()
 	if err != nil {
 		return fmt.Errorf("failed to get pane ID for window %s: %w", windowName, err)
