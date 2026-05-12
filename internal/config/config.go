@@ -15,7 +15,6 @@ import (
 type Config struct {
 	General  GeneralConfig  `toml:"general"`
 	Open     OpenConfig     `toml:"open"`
-	Review   ReviewConfig   `toml:"review"`
 	Delete   DeleteConfig   `toml:"delete"`
 	Worktree WorktreeConfig `toml:"worktree"`
 	Safety   SafetyConfig   `toml:"safety"`
@@ -39,7 +38,8 @@ type GeneralConfig struct {
 // OpenConfig contains settings for opening worktrees.
 type OpenConfig struct {
 	// Command to run when opening a worktree
-	// Template variables: {path}, {branch}, {branch_short}, {repo}, {window_name}
+	// Template variables: {path}, {branch}, {branch_short}, {repo}, {window_name},
+	// {pr_number} (empty unless the worktree is on a "pr/<n>" branch)
 	Command string `toml:"command"`
 
 	// How to detect existing windows: "path", "name", or "none"
@@ -56,14 +56,6 @@ type OpenConfig struct {
 
 	// Stash dirty worktree before switching
 	StashOnSwitch bool `toml:"stash_on_switch"`
-}
-
-// ReviewConfig contains settings for the PR review flow.
-type ReviewConfig struct {
-	// Command to run inside a PR review worktree after creation.
-	// Template variables: {path}, {branch}, {repo}, {pr_number}
-	// Variables are shell-escaped for safety. Empty = skip.
-	Command string `toml:"command"`
 }
 
 // DeleteConfig contains settings for worktree deletion.
@@ -155,23 +147,23 @@ type UIConfig struct {
 
 // KeysConfig contains keybinding settings.
 type KeysConfig struct {
-	Up       string `toml:"up"`
-	Down     string `toml:"down"`
-	Home     string `toml:"home"`
-	End      string `toml:"end"`
-	Open     string `toml:"open"`
-	New      string `toml:"new"`
-	Delete   string `toml:"delete"`
-	Rename   string `toml:"rename"`
-	Filter   string `toml:"filter"`
-	Fetch    string `toml:"fetch"`
-	Detail   string `toml:"detail"`
-	Prune    string `toml:"prune"`
-	Stash    string `toml:"stash"`
-	Sort     string `toml:"sort"`
-	ReviewPR string `toml:"review_pr"`
-	Help     string `toml:"help"`
-	Quit     string `toml:"quit"`
+	Up     string `toml:"up"`
+	Down   string `toml:"down"`
+	Home   string `toml:"home"`
+	End    string `toml:"end"`
+	Open   string `toml:"open"`
+	New    string `toml:"new"`
+	Delete string `toml:"delete"`
+	Rename string `toml:"rename"`
+	Filter string `toml:"filter"`
+	Fetch  string `toml:"fetch"`
+	Detail string `toml:"detail"`
+	Prune  string `toml:"prune"`
+	Stash  string `toml:"stash"`
+	Sort   string `toml:"sort"`
+	OpenPR string `toml:"open_pr"`
+	Help   string `toml:"help"`
+	Quit   string `toml:"quit"`
 }
 
 // DefaultConfig returns the default configuration.
@@ -188,9 +180,6 @@ func DefaultConfig() *Config {
 			OpenAfterCreate: true,
 			WindowNameStyle: "short",
 			StashOnSwitch:   false,
-		},
-		Review: ReviewConfig{
-			Command: "",
 		},
 		Delete: DeleteConfig{
 			CloseWindowAction:  "ask",
@@ -214,23 +203,23 @@ func DefaultConfig() *Config {
 			DefaultSort:     "default",
 		},
 		Keys: KeysConfig{
-			Up:       "up,k",
-			Down:     "down,j",
-			Home:     "home,g",
-			End:      "end,G",
-			Open:     "enter",
-			New:      "n",
-			Delete:   "d",
-			Rename:   "r",
-			Filter:   "/",
-			Fetch:    "f",
-			Detail:   "tab",
-			Prune:    "P",
-			Stash:    "s",
-			Sort:     "o",
-			ReviewPR: "R",
-			Help:     "?",
-			Quit:     "q,ctrl+c",
+			Up:     "up,k",
+			Down:   "down,j",
+			Home:   "home,g",
+			End:    "end,G",
+			Open:   "enter",
+			New:    "n",
+			Delete: "d",
+			Rename: "r",
+			Filter: "/",
+			Fetch:  "f",
+			Detail: "tab",
+			Prune:  "P",
+			Stash:  "s",
+			Sort:   "o",
+			OpenPR: "R",
+			Help:   "?",
+			Quit:   "q,ctrl+c",
 		},
 		Layouts: []LayoutConfig{},
 	}
@@ -360,7 +349,9 @@ func generateDefaultConfigContent() string {
 	b.WriteString("[open]\n")
 	b.WriteString("# Command to run when opening a worktree (auto-detected if not set)\n")
 	b.WriteString("# Grove auto-detects tmux/zellij at runtime. Only set this to override.\n")
-	b.WriteString("# Template variables: {path}, {branch}, {branch_short}, {repo}, {window_name}\n")
+	b.WriteString("# Template variables: {path}, {branch}, {branch_short}, {repo}, {window_name},\n")
+	b.WriteString("# {pr_number} (empty unless opening a worktree on a 'pr/<n>' branch — see\n")
+	b.WriteString("# the open_pr keybinding to fetch a GitHub PR into one)\n")
 	b.WriteString("# Variables are shell-escaped for safety.\n")
 	b.WriteString("# command = \"tmux new-window -n {branch_short} -c {path}\"\n")
 	b.WriteString("# How to detect existing windows: \"path\", \"name\", or \"none\"\n")
@@ -373,13 +364,6 @@ func generateDefaultConfigContent() string {
 	fmt.Fprintf(&b, "window_name_style = %q\n", cfg.Open.WindowNameStyle)
 	b.WriteString("# Stash dirty worktree before switching\n")
 	fmt.Fprintf(&b, "stash_on_switch = %v\n\n", cfg.Open.StashOnSwitch)
-
-	b.WriteString("[review]\n")
-	b.WriteString("# Command to run inside a PR review worktree after creation.\n")
-	b.WriteString("# Triggered by the review_pr keybinding (default: R) followed by a PR number.\n")
-	b.WriteString("# Template variables: {path}, {branch}, {repo}, {pr_number}\n")
-	b.WriteString("# Variables are shell-escaped. Empty (default) skips the review step.\n")
-	b.WriteString("# command = \"claude -p 'review pr #{pr_number}, surface bugs and propose fixes'\"\n\n")
 
 	b.WriteString("[delete]\n")
 	b.WriteString("# What to do with terminal window/tab when deleting a worktree\n")
@@ -485,7 +469,7 @@ func (c *Config) Validate() []string {
 	}
 
 	// Check template variables in command
-	validVars := []string{"{path}", "{branch}", "{branch_short}", "{repo}", "{window_name}"}
+	validVars := []string{"{path}", "{branch}", "{branch_short}", "{repo}", "{window_name}", "{pr_number}"}
 	vars := extractTemplateVars(c.Open.Command)
 	for _, v := range vars {
 		found := false
@@ -497,21 +481,6 @@ func (c *Config) Validate() []string {
 		}
 		if !found {
 			warnings = append(warnings, fmt.Sprintf("Unknown template variable in open.command: %s", v))
-		}
-	}
-
-	// Check template variables in review command (extra var: {pr_number})
-	validReviewVars := []string{"{path}", "{branch}", "{branch_short}", "{repo}", "{pr_number}"}
-	for _, v := range extractTemplateVars(c.Review.Command) {
-		found := false
-		for _, valid := range validReviewVars {
-			if v == valid {
-				found = true
-				break
-			}
-		}
-		if !found {
-			warnings = append(warnings, fmt.Sprintf("Unknown template variable in review.command: %s", v))
 		}
 	}
 
@@ -623,23 +592,23 @@ func (c *Config) Validate() []string {
 
 	// Validate key bindings for conflicts
 	keyBindings := map[string][]string{
-		"up":        strings.Split(c.Keys.Up, ","),
-		"down":      strings.Split(c.Keys.Down, ","),
-		"home":      strings.Split(c.Keys.Home, ","),
-		"end":       strings.Split(c.Keys.End, ","),
-		"open":      strings.Split(c.Keys.Open, ","),
-		"new":       strings.Split(c.Keys.New, ","),
-		"delete":    strings.Split(c.Keys.Delete, ","),
-		"rename":    strings.Split(c.Keys.Rename, ","),
-		"filter":    strings.Split(c.Keys.Filter, ","),
-		"fetch":     strings.Split(c.Keys.Fetch, ","),
-		"detail":    strings.Split(c.Keys.Detail, ","),
-		"prune":     strings.Split(c.Keys.Prune, ","),
-		"stash":     strings.Split(c.Keys.Stash, ","),
-		"sort":      strings.Split(c.Keys.Sort, ","),
-		"review_pr": strings.Split(c.Keys.ReviewPR, ","),
-		"help":      strings.Split(c.Keys.Help, ","),
-		"quit":      strings.Split(c.Keys.Quit, ","),
+		"up":      strings.Split(c.Keys.Up, ","),
+		"down":    strings.Split(c.Keys.Down, ","),
+		"home":    strings.Split(c.Keys.Home, ","),
+		"end":     strings.Split(c.Keys.End, ","),
+		"open":    strings.Split(c.Keys.Open, ","),
+		"new":     strings.Split(c.Keys.New, ","),
+		"delete":  strings.Split(c.Keys.Delete, ","),
+		"rename":  strings.Split(c.Keys.Rename, ","),
+		"filter":  strings.Split(c.Keys.Filter, ","),
+		"fetch":   strings.Split(c.Keys.Fetch, ","),
+		"detail":  strings.Split(c.Keys.Detail, ","),
+		"prune":   strings.Split(c.Keys.Prune, ","),
+		"stash":   strings.Split(c.Keys.Stash, ","),
+		"sort":    strings.Split(c.Keys.Sort, ","),
+		"open_pr": strings.Split(c.Keys.OpenPR, ","),
+		"help":    strings.Split(c.Keys.Help, ","),
+		"quit":    strings.Split(c.Keys.Quit, ","),
 	}
 
 	// Build reverse map: key -> action(s)

@@ -122,21 +122,19 @@ func WindowExistsFor(cfg *config.Config, wt *git.Worktree) bool {
 }
 
 // expandTemplate expands template variables in the command.
+// {pr_number} is substituted from the worktree's branch when it matches "pr/<n>",
+// otherwise it expands to the empty string.
 func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *config.Config) string {
-	return expandTemplateWithPR(command, wt, repo, cfg, 0)
-}
-
-// expandTemplateWithPR is like expandTemplate but also substitutes {pr_number}.
-// Pass prNum=0 to substitute the empty string (so stray {pr_number} doesn't leak into shell).
-func expandTemplateWithPR(command string, wt *git.Worktree, repo *git.Repo, cfg *config.Config, prNum int) string {
-	result := command
-
 	branch := wt.Branch
 	branchShort := wt.BranchShort()
 	repoName := filepath.Base(repo.Root)
 	windowName := branchShort
 	if cfg != nil && cfg.Open.WindowNameStyle == "full" {
 		windowName = branch
+	}
+	prValue := ""
+	if n := git.PRNumberFromBranch(branch); n > 0 {
+		prValue = strconv.Itoa(n)
 	}
 
 	replacements := []struct {
@@ -148,50 +146,14 @@ func expandTemplateWithPR(command string, wt *git.Worktree, repo *git.Repo, cfg 
 		{"{branch_short}", shellQuote(branchShort)},
 		{"{repo}", shellQuote(repoName)},
 		{"{window_name}", shellQuote(windowName)},
+		{"{pr_number}", prValue},
 	}
 
+	result := command
 	for _, repl := range replacements {
 		result = strings.ReplaceAll(result, repl.key, repl.value)
 	}
-
-	prValue := ""
-	if prNum > 0 {
-		prValue = strconv.Itoa(prNum)
-	}
-	result = strings.ReplaceAll(result, "{pr_number}", prValue)
-
 	return result
-}
-
-// RunReview executes the configured review command in the worktree's directory.
-// Returns nil immediately (without error) if no review command is configured.
-func RunReview(cfg *config.Config, wt *git.Worktree, prNum int) error {
-	if cfg == nil || cfg.Review.Command == "" {
-		return nil
-	}
-
-	repo, err := git.GetRepo()
-	if err != nil {
-		return err
-	}
-
-	expanded := expandTemplateWithPR(cfg.Review.Command, wt, repo, cfg, prNum)
-
-	cmd := exec.Command("sh", "-c", expanded)
-	cmd.Dir = wt.Path
-	cmd.Stdin = nil
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to launch review command: %w", err)
-	}
-
-	go func() {
-		_ = cmd.Wait()
-	}()
-
-	return nil
 }
 
 // shellQuote returns a shell-safe quoted string.
