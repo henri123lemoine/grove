@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/henri123lemoine/grove/internal/config"
@@ -122,6 +123,12 @@ func WindowExistsFor(cfg *config.Config, wt *git.Worktree) bool {
 
 // expandTemplate expands template variables in the command.
 func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *config.Config) string {
+	return expandTemplateWithPR(command, wt, repo, cfg, 0)
+}
+
+// expandTemplateWithPR is like expandTemplate but also substitutes {pr_number}.
+// Pass prNum=0 to substitute the empty string (so stray {pr_number} doesn't leak into shell).
+func expandTemplateWithPR(command string, wt *git.Worktree, repo *git.Repo, cfg *config.Config, prNum int) string {
 	result := command
 
 	branch := wt.Branch
@@ -147,7 +154,44 @@ func expandTemplate(command string, wt *git.Worktree, repo *git.Repo, cfg *confi
 		result = strings.ReplaceAll(result, repl.key, repl.value)
 	}
 
+	prValue := ""
+	if prNum > 0 {
+		prValue = strconv.Itoa(prNum)
+	}
+	result = strings.ReplaceAll(result, "{pr_number}", prValue)
+
 	return result
+}
+
+// RunReview executes the configured review command in the worktree's directory.
+// Returns nil immediately (without error) if no review command is configured.
+func RunReview(cfg *config.Config, wt *git.Worktree, prNum int) error {
+	if cfg == nil || cfg.Review.Command == "" {
+		return nil
+	}
+
+	repo, err := git.GetRepo()
+	if err != nil {
+		return err
+	}
+
+	expanded := expandTemplateWithPR(cfg.Review.Command, wt, repo, cfg, prNum)
+
+	cmd := exec.Command("sh", "-c", expanded)
+	cmd.Dir = wt.Path
+	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to launch review command: %w", err)
+	}
+
+	go func() {
+		_ = cmd.Wait()
+	}()
+
+	return nil
 }
 
 // shellQuote returns a shell-safe quoted string.

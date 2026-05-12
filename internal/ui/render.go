@@ -43,6 +43,8 @@ const (
 	StateStash
 	StateSelectLayout
 	StatePruneConfirm
+	StateReviewPR
+	StateReviewPRFetching
 )
 
 // HelpBinding represents a keybinding for help display.
@@ -93,6 +95,8 @@ type RenderParams struct {
 	StashCursor         int
 	LayoutWorktree      *git.Worktree
 	LayoutCursor        int
+	ReviewPRInput       string
+	ReviewPRNum         int
 	SpinnerFrame        string
 	HelpSections        []HelpSection
 	PendingWindowsCount int
@@ -180,6 +184,10 @@ func Render(p RenderParams) string {
 		return renderSelectLayout(p)
 	case StatePruneConfirm:
 		return renderPruneConfirm(p)
+	case StateReviewPR:
+		return renderReviewPR(p)
+	case StateReviewPRFetching:
+		return renderReviewPRFetching(p)
 	default:
 		return renderList(p)
 	}
@@ -841,6 +849,45 @@ func renderFilter(p RenderParams) string {
 
 	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
 	b.WriteString(HelpStyle.Render("enter select • esc clear"))
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderReviewPR renders the PR-number prompt.
+func renderReviewPR(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("REVIEW PR") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+
+	if p.Err != nil {
+		b.WriteString(ErrorStyle.Render("Error: "+p.Err.Error()) + "\n\n")
+	}
+
+	b.WriteString("PR number:\n")
+	b.WriteString(p.ReviewPRInput + "\n\n")
+
+	if p.Config != nil && p.Config.Review.Command != "" {
+		b.WriteString(HelpStyle.Render("(will run review command after fetch)") + "\n")
+	} else {
+		b.WriteString(HelpStyle.Render("(no review.command configured — will just open the worktree)") + "\n")
+	}
+
+	b.WriteString("\n" + DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n")
+	b.WriteString(HelpStyle.Render("enter confirm • esc cancel"))
+
+	return wrapInBox(b.String(), p.Width, p.Height)
+}
+
+// renderReviewPRFetching renders the spinner while a PR is being fetched.
+func renderReviewPRFetching(p RenderParams) string {
+	var b strings.Builder
+	contentWidth := p.Width - 4
+
+	b.WriteString(HeaderStyle.Render("REVIEW PR") + "\n")
+	b.WriteString(DividerStyle.Render(strings.Repeat("─", contentWidth)) + "\n\n")
+	b.WriteString(fmt.Sprintf("%s Fetching PR #%d and creating worktree...\n", p.SpinnerFrame, p.ReviewPRNum))
 
 	return wrapInBox(b.String(), p.Width, p.Height)
 }

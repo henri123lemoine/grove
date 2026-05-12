@@ -17,16 +17,17 @@ type KeyMap struct {
 	End  key.Binding
 
 	// Actions
-	Open   key.Binding
-	New    key.Binding
-	Delete key.Binding
-	Rename key.Binding
-	Fetch  key.Binding
-	Filter key.Binding
-	Detail key.Binding
-	Prune  key.Binding
-	Stash  key.Binding
-	Sort   key.Binding
+	Open     key.Binding
+	New      key.Binding
+	Delete   key.Binding
+	Rename   key.Binding
+	Fetch    key.Binding
+	Filter   key.Binding
+	Detail   key.Binding
+	Prune    key.Binding
+	Stash    key.Binding
+	Sort     key.Binding
+	ReviewPR key.Binding
 
 	// General
 	Confirm key.Binding
@@ -93,6 +94,10 @@ func DefaultKeyMap() KeyMap {
 		Sort: key.NewBinding(
 			key.WithKeys("o"),
 			key.WithHelp("o", "sort"),
+		),
+		ReviewPR: key.NewBinding(
+			key.WithKeys("R"),
+			key.WithHelp("R", "review PR"),
 		),
 		Confirm: key.NewBinding(
 			key.WithKeys("enter", "y"),
@@ -201,6 +206,12 @@ func KeyMapFromConfig(cfg *config.KeysConfig) KeyMap {
 			key.WithHelp(cfg.Sort, "sort"),
 		)
 	}
+	if cfg.ReviewPR != "" {
+		km.ReviewPR = key.NewBinding(
+			key.WithKeys(parseKeys(cfg.ReviewPR)...),
+			key.WithHelp(cfg.ReviewPR, "review PR"),
+		)
+	}
 	if cfg.Help != "" {
 		km.Help = key.NewBinding(
 			key.WithKeys(parseKeys(cfg.Help)...),
@@ -255,6 +266,7 @@ func (km KeyMap) HelpSections() []ui.HelpSection {
 				{Keys: km.Filter.Help().Key, Desc: "Filter worktrees"},
 				{Keys: km.Detail.Help().Key, Desc: "Toggle detail panel"},
 				{Keys: km.Sort.Help().Key, Desc: "Cycle sort order"},
+				{Keys: km.ReviewPR.Help().Key, Desc: "Review GitHub PR by number"},
 			},
 		},
 		{

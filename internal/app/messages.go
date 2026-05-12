@@ -40,6 +40,19 @@ type WorktreeDeletedMsg struct {
 	Err               error
 }
 
+// PRWorktreeReadyMsg is sent when a PR review worktree is fetched and created.
+type PRWorktreeReadyMsg struct {
+	Path   string
+	Branch string
+	PRNum  int
+	Err    error
+}
+
+// ReviewLaunchedMsg is sent after the review command finishes (or fails to start).
+type ReviewLaunchedMsg struct {
+	Err error
+}
+
 // WorktreeOpenedMsg is sent when a worktree is opened.
 type WorktreeOpenedMsg struct {
 	Err         error

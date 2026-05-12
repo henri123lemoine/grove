@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -37,6 +38,8 @@ const (
 	StateStash
 	StateSelectLayout
 	StatePruneConfirm
+	StateReviewPR
+	StateReviewPRFetching
 )
 
 // SortMode represents the worktree list sort order.
@@ -153,6 +156,10 @@ type Model struct {
 	layoutWorktree *git.Worktree
 	layoutCursor   int
 
+	// PR review flow
+	reviewPRInput textinput.Model
+	reviewPRNum   int
+
 	// UI
 	width              int
 	height             int
@@ -193,6 +200,10 @@ func New(cfg *config.Config, repo *git.Repo, configWarnings []string, version st
 	baseBranchFilter.Placeholder = "filter branches..."
 	baseBranchFilter.CharLimit = 100
 
+	reviewPRInput := textinput.New()
+	reviewPRInput.Placeholder = "PR number"
+	reviewPRInput.CharLimit = 10
+
 	// Initialize spinner with dots style
 	s := spinner.New()
 	s.Spinner = spinner.Dot
@@ -208,6 +219,7 @@ func New(cfg *config.Config, repo *git.Repo, configWarnings []string, version st
 		filterInput:      filterInput,
 		renameInput:      renameInput,
 		baseBranchFilter: baseBranchFilter,
+		reviewPRInput:    reviewPRInput,
 		spinner:          s,
 		state:            StateList,
 		loading:          true,
@@ -413,6 +425,41 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.state = StateList
 		return m, loadWorktrees
+
+	case PRWorktreeReadyMsg:
+		m.reviewPRNum = 0
+		if msg.Err != nil {
+			m.err = msg.Err
+			m.state = StateList
+			return m, loadWorktrees
+		}
+		newWt := &git.Worktree{Path: msg.Path, Branch: msg.Branch}
+		cmds := []tea.Cmd{
+			loadWorktrees,
+			runPostCreateOperations(m.config, msg.Path),
+		}
+		if m.config.Review.Command != "" {
+			m.state = StateList
+			cmds = append(cmds, runReviewCommand(m.config, newWt, msg.PRNum))
+		} else if m.config.Open.OpenAfterCreate {
+			if len(m.config.Layouts) > 0 {
+				m.layoutWorktree = newWt
+				m.layoutCursor = 0
+				m.state = StateSelectLayout
+			} else {
+				m.state = StateList
+				cmds = append(cmds, openWorktree(m.config, newWt, m.currentWorktree(), nil))
+			}
+		} else {
+			m.state = StateList
+		}
+		return m, tea.Batch(cmds...)
+
+	case ReviewLaunchedMsg:
+		if msg.Err != nil {
+			m.err = msg.Err
+		}
+		return m, nil
 
 	case WorktreeDeletedMsg:
 		if msg.Err != nil {
@@ -621,6 +668,10 @@ func (m Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.handleLayoutKeys(msg)
 	case StatePruneConfirm:
 		return m.handlePruneConfirmKeys(msg)
+	case StateReviewPR:
+		return m.handleReviewPRKeys(msg)
+	case StateReviewPRFetching:
+		return m, nil
 	}
 	return m, nil
 }
@@ -781,6 +832,11 @@ func (m Model) handleListKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.sortMode = m.sortMode.Next()
 		m.applyFilter() // Re-sort the list
 		return m, nil
+	case key.Matches(msg, m.keys.ReviewPR):
+		m.state = StateReviewPR
+		m.reviewPRInput.Reset()
+		m.reviewPRInput.Focus()
+		return m, textinput.Blink
 	}
 	return m, nil
 }
@@ -1182,6 +1238,36 @@ func (m Model) handleLayoutKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleReviewPRKeys handles key presses while entering a PR number for review.
+func (m Model) handleReviewPRKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyEsc:
+		m.state = StateList
+		m.reviewPRInput.Reset()
+		return m, nil
+	case tea.KeyEnter:
+		raw := strings.TrimSpace(m.reviewPRInput.Value())
+		raw = strings.TrimPrefix(raw, "#")
+		prNum, err := strconv.Atoi(raw)
+		if err != nil || prNum <= 0 {
+			m.err = fmt.Errorf("invalid PR number: %q", m.reviewPRInput.Value())
+			return m, nil
+		}
+		m.err = nil
+		m.reviewPRNum = prNum
+		m.reviewPRInput.Reset()
+		m.state = StateReviewPRFetching
+		return m, tea.Batch(
+			fetchAndCreatePRWorktree(m.config, prNum),
+			m.spinner.Tick,
+		)
+	}
+
+	var cmd tea.Cmd
+	m.reviewPRInput, cmd = m.reviewPRInput.Update(msg)
+	return m, cmd
+}
+
 func (m Model) handlePruneConfirmKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.Type {
 	case tea.KeyEsc:
@@ -1461,6 +1547,8 @@ func (m Model) View() string {
 		StashCursor:         m.stashCursor,
 		LayoutWorktree:      m.layoutWorktree,
 		LayoutCursor:        m.layoutCursor,
+		ReviewPRInput:       m.reviewPRInput.View(),
+		ReviewPRNum:         m.reviewPRNum,
 		SpinnerFrame:        m.spinner.View(),
 		HelpSections:        m.keys.HelpSections(),
 		PendingWindowsCount: len(m.pendingWindowsClose),
@@ -1492,6 +1580,7 @@ func (m Model) SelectedWorktree() *git.Worktree {
 func (m Model) isLoading() bool {
 	return m.loading ||
 		m.state == StateFetching ||
+		m.state == StateReviewPRFetching ||
 		(m.state == StateDelete && m.safetyInfo == nil)
 }
 
@@ -1642,6 +1731,30 @@ func dropStash(worktreePath string, index int) tea.Cmd {
 	return func() tea.Msg {
 		err := git.DropStash(worktreePath, index)
 		return StashOperationCompletedMsg{Operation: "drop", Err: err}
+	}
+}
+
+func fetchAndCreatePRWorktree(cfg *config.Config, prNum int) tea.Cmd {
+	return func() tea.Msg {
+		repo, err := git.GetRepo()
+		if err != nil {
+			return PRWorktreeReadyMsg{PRNum: prNum, Err: err}
+		}
+		branch, err := git.FetchPRHead(prNum, cfg.General.Remote)
+		if err != nil {
+			return PRWorktreeReadyMsg{PRNum: prNum, Err: err}
+		}
+		path := filepath.Join(repo.MainWorktreeRoot, cfg.General.WorktreeDir, git.PRWorktreeDir, strconv.Itoa(prNum))
+		if err := git.Create(path, branch, false, ""); err != nil {
+			return PRWorktreeReadyMsg{PRNum: prNum, Branch: branch, Err: err}
+		}
+		return PRWorktreeReadyMsg{Path: path, Branch: branch, PRNum: prNum}
+	}
+}
+
+func runReviewCommand(cfg *config.Config, wt *git.Worktree, prNum int) tea.Cmd {
+	return func() tea.Msg {
+		return ReviewLaunchedMsg{Err: exec.RunReview(cfg, wt, prNum)}
 	}
 }
 
