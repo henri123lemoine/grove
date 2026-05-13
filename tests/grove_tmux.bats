@@ -155,6 +155,8 @@ EOF
 
     # Source ensure_grove (need detect_platform and get_latest_version too)
     eval "$(sed -n '/^detect_platform/,/^}/p; /^get_latest_version/,/^}/p; /^get_installed_version/,/^}/p; /^download_grove/,/^}/p; /^ensure_grove/,/^}/p' "$BATS_TEST_DIRNAME/../grove.tmux")"
+    get_latest_version() { echo "v0.1.0"; }
+    download_grove() { echo "download_grove should not be called" >&2; return 1; }
 
     run ensure_grove
     [ "$status" -eq 0 ]

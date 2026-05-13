@@ -3,8 +3,8 @@
 
 keybinds {
     normal {
-        // Open grove with Ctrl+g
-        bind "Ctrl g" {
+        // Open grove with Alt+g
+        bind "Alt g" {
             Run "grove" {
                 close_on_exit true
             }
@@ -13,7 +13,7 @@ keybinds {
 
     // Or in locked mode if you prefer
     locked {
-        bind "Ctrl g" {
+        bind "Alt g" {
             Run "grove" {
                 close_on_exit true
             }
@@ -24,7 +24,7 @@ keybinds {
 // Alternative: Use a floating pane for grove
 // keybinds {
 //     normal {
-//         bind "Ctrl g" {
+//         bind "Alt g" {
 //             Run "grove" {
 //                 floating true
 //                 close_on_exit true
